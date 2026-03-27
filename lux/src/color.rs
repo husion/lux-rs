@@ -20,11 +20,11 @@ impl Observer {
     pub fn standard(self) -> LuxResult<TristimulusObserver> {
         match self {
             Self::Cie1931_2 => TristimulusObserver::from_csv(
-                include_str!("../../luxpy/luxpy/data/cmfs/ciexyz_1931_2.dat"),
+                include_str!("../data/cmfs/ciexyz_1931_2.dat"),
                 683.002,
             ),
             Self::Cie1964_10 => TristimulusObserver::from_csv(
-                include_str!("../../luxpy/luxpy/data/cmfs/ciexyz_1964_10.dat"),
+                include_str!("../data/cmfs/ciexyz_1964_10.dat"),
                 683.599,
             ),
         }
