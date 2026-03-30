@@ -1,5 +1,6 @@
 pub mod color;
 pub mod error;
+pub mod illuminants;
 pub mod photometry;
 pub mod spectrum;
 
@@ -10,6 +11,10 @@ pub use color::{
     MesopicLuminousEfficiency, Observer, TristimulusObserver,
 };
 pub use error::{LuxError, LuxResult};
+pub use illuminants::{
+    blackbody, cct_to_xyz, cri_ref, daylightlocus, daylightphase, standard_illuminant,
+    standard_illuminant_names, xyz_to_cct,
+};
 pub use photometry::{
     spd_to_ler, spd_to_ler_many, spd_to_power, spd_to_xyz, spd_to_xyz_many, PowerType,
 };

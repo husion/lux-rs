@@ -3,10 +3,12 @@ use std::path::PathBuf;
 use std::process::Command;
 
 use lux::{
-    get_cie_mesopic_adaptation, getwld, getwlr, lab_to_xyz, lms_to_xyz, luv_to_xyz, spd_to_ler,
-    spd_to_ler_many, spd_to_power, spd_to_xyz, spd_to_xyz_many, srgb_to_xyz, vlbar_cie_mesopic,
-    xyz_to_lab, xyz_to_lms, xyz_to_luv, xyz_to_srgb, xyz_to_yuv, xyz_to_yxy, yuv_to_xyz,
-    yxy_to_xyz, Observer, PowerType, SpectralMatrix, Spectrum, SpectrumNormalization,
+    blackbody, cri_ref, daylightlocus, daylightphase, get_cie_mesopic_adaptation, getwld,
+    getwlr, lab_to_xyz, lms_to_xyz, luv_to_xyz, spd_to_ler, spd_to_ler_many, spd_to_power,
+    spd_to_xyz, spd_to_xyz_many, srgb_to_xyz, vlbar_cie_mesopic, xyz_to_cct, xyz_to_lab,
+    xyz_to_lms, xyz_to_luv, xyz_to_srgb, xyz_to_yuv, xyz_to_yxy, yuv_to_xyz, yxy_to_xyz,
+    cct_to_xyz, standard_illuminant, Observer, PowerType, SpectralMatrix, Spectrum,
+    SpectrumNormalization,
     WavelengthGrid,
 };
 
@@ -342,6 +344,154 @@ fn current_rust_basics_match_luxpy() {
         &normalize_qu_flat,
         &parse_vec(&baselines["normalize_qu"]),
         1e-12,
+    );
+
+    let blackbody_relative = blackbody(
+        6500.0,
+        Some(WavelengthGrid::new(360.0, 365.0, 1.0).unwrap()),
+        None,
+        true,
+    )
+    .unwrap();
+    let mut blackbody_relative_flat = blackbody_relative.wavelengths().to_vec();
+    blackbody_relative_flat.extend_from_slice(blackbody_relative.values());
+    assert_vec_close(
+        &blackbody_relative_flat,
+        &parse_vec(&baselines["blackbody_relative_6500"]),
+        1e-9,
+    );
+
+    let blackbody_absolute = blackbody(
+        6500.0,
+        Some(WavelengthGrid::new(560.0, 560.0, 1.0).unwrap()),
+        None,
+        false,
+    )
+    .unwrap();
+    let mut blackbody_absolute_flat = blackbody_absolute.wavelengths().to_vec();
+    blackbody_absolute_flat.extend_from_slice(blackbody_absolute.values());
+    assert_vec_close(
+        &blackbody_absolute_flat,
+        &parse_vec(&baselines["blackbody_absolute_6500_560"]),
+        1e-6,
+    );
+
+    assert_vec_close(
+        &daylightlocus(6500.0, false, false).unwrap(),
+        &parse_vec(&baselines["daylightlocus_6500"]),
+        1e-9,
+    );
+
+    let daylightphase_6500 = daylightphase(
+        6500.0,
+        Some(WavelengthGrid::new(360.0, 365.0, 1.0).unwrap()),
+        false,
+        false,
+        None,
+    )
+    .unwrap();
+    let mut daylightphase_6500_flat = daylightphase_6500.wavelengths().to_vec();
+    daylightphase_6500_flat.extend_from_slice(daylightphase_6500.values());
+    assert_vec_close(
+        &daylightphase_6500_flat,
+        &parse_vec(&baselines["daylightphase_6500"]),
+        1e-9,
+    );
+
+    let daylightphase_3500 = daylightphase(
+        3500.0,
+        Some(WavelengthGrid::new(360.0, 365.0, 1.0).unwrap()),
+        false,
+        false,
+        None,
+    )
+    .unwrap();
+    let mut daylightphase_3500_flat = daylightphase_3500.wavelengths().to_vec();
+    daylightphase_3500_flat.extend_from_slice(daylightphase_3500.values());
+    assert_vec_close(
+        &daylightphase_3500_flat,
+        &parse_vec(&baselines["daylightphase_3500"]),
+        1e-9,
+    );
+
+    let cri_ref_spectra = cri_ref(
+        &[3000.0, 6500.0],
+        Some(WavelengthGrid::new(360.0, 365.0, 1.0).unwrap()),
+    )
+    .unwrap();
+    let mut cri_ref_flat = cri_ref_spectra.wavelengths().to_vec();
+    for spectrum in cri_ref_spectra.spectra() {
+        cri_ref_flat.extend_from_slice(spectrum);
+    }
+    assert_vec_close(&cri_ref_flat, &parse_vec(&baselines["cri_ref_3000_6500"]), 1e-9);
+
+    let (cct_sample, duv_sample) = xyz_to_cct([100.0, 100.0, 100.0], Observer::Cie1931_2).unwrap();
+    assert_vec_close(
+        &[cct_sample, duv_sample],
+        &parse_vec(&baselines["xyz_to_cct_sample"]),
+        1e-3,
+    );
+
+    let cct_to_xyz_sample = cct_to_xyz(6500.0, Observer::Cie1931_2).unwrap();
+    assert_vec_close(
+        &cct_to_xyz_sample,
+        &parse_vec(&baselines["cct_to_xyz_6500"]),
+        1e-6,
+    );
+
+    let illuminant_a =
+        standard_illuminant("A", Some(WavelengthGrid::new(360.0, 365.0, 1.0).unwrap())).unwrap();
+    let mut illuminant_a_flat = illuminant_a.wavelengths().to_vec();
+    illuminant_a_flat.extend_from_slice(illuminant_a.values());
+    assert_vec_close(&illuminant_a_flat, &parse_vec(&baselines["illuminant_A"]), 1e-12);
+
+    let illuminant_d65 = standard_illuminant(
+        "D65",
+        Some(WavelengthGrid::new(360.0, 365.0, 1.0).unwrap()),
+    )
+    .unwrap();
+    let mut illuminant_d65_flat = illuminant_d65.wavelengths().to_vec();
+    illuminant_d65_flat.extend_from_slice(illuminant_d65.values());
+    assert_vec_close(
+        &illuminant_d65_flat,
+        &parse_vec(&baselines["illuminant_D65"]),
+        1e-12,
+    );
+
+    let illuminant_f4 =
+        standard_illuminant("F4", Some(WavelengthGrid::new(380.0, 385.0, 1.0).unwrap())).unwrap();
+    let mut illuminant_f4_flat = illuminant_f4.wavelengths().to_vec();
+    illuminant_f4_flat.extend_from_slice(illuminant_f4.values());
+    assert_vec_close(
+        &illuminant_f4_flat,
+        &parse_vec(&baselines["illuminant_F4"]),
+        1e-12,
+    );
+
+    let illuminant_led_b1 = standard_illuminant(
+        "LED_B1",
+        Some(WavelengthGrid::new(380.0, 385.0, 1.0).unwrap()),
+    )
+    .unwrap();
+    let mut illuminant_led_b1_flat = illuminant_led_b1.wavelengths().to_vec();
+    illuminant_led_b1_flat.extend_from_slice(illuminant_led_b1.values());
+    assert_vec_close(
+        &illuminant_led_b1_flat,
+        &parse_vec(&baselines["illuminant_LED_B1"]),
+        1e-12,
+    );
+
+    let illuminant_d50 = standard_illuminant(
+        "D50",
+        Some(WavelengthGrid::new(360.0, 365.0, 1.0).unwrap()),
+    )
+    .unwrap();
+    let mut illuminant_d50_flat = illuminant_d50.wavelengths().to_vec();
+    illuminant_d50_flat.extend_from_slice(illuminant_d50.values());
+    assert_vec_close(
+        &illuminant_d50_flat,
+        &parse_vec(&baselines["illuminant_D50"]),
+        1e-9,
     );
 
     let rust_wl = getwlr(WavelengthGrid::new(360.0, 365.0, 1.0).unwrap()).unwrap();

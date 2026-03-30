@@ -31,13 +31,32 @@
   - 嵌入式标准观察者：
     - `1931_2`
     - `1964_10`
+  - CIE 191:2010 mesopic 支持：
+    - `get_cie_mesopic_adaptation`
+    - `vlbar_cie_mesopic`
+  - 参考光源：
+    - `blackbody`
+    - `daylightlocus`
+    - `daylightphase`
+    - `cri_ref`（默认 CIE Ra 路径）
+    - `standard_illuminant(name, wl_grid)` 首批 registry
+  - CCT / Duv：
+    - `xyz_to_cct`
+    - `cct_to_xyz`
+  - 常用颜色空间变换：
+    - `XYZ <-> Yxy`
+    - `XYZ <-> Yuv`
+    - `XYZ <-> Lab`
+    - `XYZ <-> Luv`
+    - `XYZ <-> LMS`
+    - `XYZ <-> sRGB`
 - 当前相关文件：
   - `src/spectrum.rs`
   - `src/photometry.rs`
   - `src/color.rs`
   - `src/error.rs`
 - 当前测试状态：
-  - Rust 单测：41
+  - Rust 单测：56
   - Python parity 集成测试：1
   - `cargo test` 全通过
 
@@ -218,6 +237,7 @@
 | 参考光源 | `blackbody`、`daylightlocus`、`daylightphase`、`cri_ref` | `spd_to_xyz`、CMF、插值 | 中 | 中到高 | P1 | 功能价值高，也是 CRI 基础 |
 | 常用颜色空间变换 | `XYZ<->Yxy/Yuv/Lab/Luv/LMS/sRGB` | `spd_to_xyz`、白点/CMF | 低 | 中 | P1 | 使用频率高 |
 | CCT / Duv | `xyz_to_cct`、`cct_to_xyz` | `spd_to_xyz`、颜色空间、参考光源 | 中到高 | 高 | P1 | 建议先做一条主算法 |
+| 固定标准光源数据集 | CIE `A`、`D50/D55/D65/D75`、`F1..F12`、CIE LED 系列 | 光谱底座、插值、统一 illuminant API | 低到中 | 中 | P1.5 | 主要是数据资产、命名检索与重采样接口 |
 | 色适应 | `cat.apply()`、适应度函数 | XYZ 变换、观察者矩阵 | 中 | 中到高 | P2 | 是 CAM 前置 |
 | 色差 | `deltaE` | Lab/UCS 等颜色空间 | 低 | 中 | P2 | 依赖清晰，可中期交付 |
 | 色貌模型 | CIECAM02、CAM16、CAM-UCS、ZCAM、CAM15u、CAM18sl | CAT、XYZ、观察条件 | 高 | 很高 | P3 | 体系大，不宜过早展开 |
@@ -271,28 +291,57 @@ P0 验收完成标志：
   - [x] `spd_to_ler`
   - [x] `spd_to_xyz`
 
-### Phase P1: 参考光源 + 常用颜色空间 + CCT
+### Phase P1: 参考光源 + CCT
 
 计划：
 
-- [ ] 实现 `blackbody`
-- [ ] 实现 `daylightlocus`
-- [ ] 实现 `daylightphase`
-- [ ] 实现 `cri_ref`
+- [x] 实现 `blackbody`
+- [x] 实现 `daylightlocus`
+- [x] 实现 `daylightphase`
+- [x] 实现 `cri_ref`
 - [x] 实现 `XYZ <-> Yxy`
 - [x] 实现 `XYZ <-> Yuv`
 - [x] 实现 `XYZ <-> Lab`
 - [x] 实现 `XYZ <-> Luv`
 - [x] 实现 `XYZ <-> LMS`
 - [x] 实现 `XYZ <-> sRGB`
-- [ ] 选择一条主路径实现 `xyz_to_cct`
-- [ ] 实现 `cct_to_xyz`
+- [x] 选择一条主路径实现 `xyz_to_cct`
+- [x] 实现 `cct_to_xyz`
 
 说明：
 
 - `xyz_to_cct` 不要一开始追平全部 Robertson / Ohno / Li / Zhang 分支
 - 先做一条稳定、可验收、可维护的主算法
 - 颜色空间转换层已开始收拢为统一 API，后续新增 `LMS / sRGB` 时应复用相同的显式参数风格或一次性升级默认白点策略，避免接口分裂。
+- P1 当前状态可以视为“颜色空间子集、默认参考光源链路与 CCT 主链路已完成”。
+
+### Phase P1.5: 固定标准光源数据集
+
+目标：补齐依赖固定 SPD 表的标准光源数据，并统一到可重采样的 illuminant API。
+
+计划：
+
+- [x] 设计标准光源命名与查找接口
+  - [x] 统一 `standard_illuminant(name, wl_grid)` 风格入口
+  - [ ] 明确命名规范与别名收口
+  - [x] 提供基础错误处理
+- [x] 接入固定标准光源数据集首批集合
+  - [x] CIE `A`
+  - [x] CIE `D50`
+  - [x] CIE `D55`
+  - [x] CIE `D65`
+  - [x] CIE `D75`
+  - [x] CIE `F1..F12`
+  - [x] CIE LED 系列
+- [x] 统一重采样语义
+- [x] 为首批固定标准光源建立 Python 对拍基线
+
+说明：
+
+- 该阶段本质上是“数据资产 + API 收口”，不是新的核心数值算法。
+- 实现时不要继续堆散装函数，优先做统一 registry / lookup 层。
+- `blackbody/daylightphase/cri_ref` 属于“生成型参考光源”，本阶段属于“表驱动固定光源”，两类入口要并存但 API 风格应一致。
+- 当前状态：首批 registry 已完成，但别名体系和更多数据集仍可继续扩展。
 
 ### Phase P2: 色适应 + 色差
 
@@ -380,9 +429,16 @@ P0 验收完成标志：
 - [x] `vlbar`
 - [x] 最小版 `cie_interp`
 - [x] 最小版 `spd_normalize`
-- [ ] `blackbody`
-- [ ] `daylightphase`
-- [ ] `cri_ref`
+- [x] `blackbody`
+- [x] `daylightphase`
+- [x] `cri_ref`
+- [x] `xyz_to_cct`
+- [x] `cct_to_xyz`
+- [x] 固定标准光源数据集首批 registry
+  - [x] CIE `A`
+  - [x] CIE `D50/D55/D65/D75`
+  - [x] CIE `F1..F12`
+  - [x] CIE LED 系列
 
 ## 7. 已确认的 Python 参考值
 
@@ -404,6 +460,8 @@ P0 验收完成标志：
 - `blackbody(6500, wl=[360,365,1])` 已可生成参考谱
 - `daylightphase(6500, wl=[360,365,1])` 已可生成参考谱
 - `cri_ref([3000,6500], wl=[360,365,1])` 已可生成参考谱
+- `cct_to_xyz(6500)` 已建立对拍基线
+- `standard_illuminant('A'/'D50'/'D65'/'F4'/'LED_B1', ...)` 已建立对拍基线
 
 ## 8. 建议的近期执行顺序
 
@@ -415,14 +473,18 @@ P0 验收完成标志：
 4. [x] 扩展 `_CMF` / `xyzbar` / `vlbar`
 5. [x] 打通 `spd_to_xyz`
 6. [x] 建立当前阶段 Python 对拍基线
-7. [ ] 进入 `blackbody/daylightphase/cri_ref`
-8. [ ] 然后进入颜色空间与 `xyz_to_cct`
+7. [x] 进入 `blackbody/daylightphase/cri_ref`
+8. [x] 再进入 `xyz_to_cct/cct_to_xyz`
+9. [x] 然后进入固定标准光源数据集层首批 registry
+10. [ ] 再进入 `CAT / deltaE`
 
 当前建议：
 
-- 下一阶段优先进入 `blackbody`
-- 之后按依赖顺序推进 `daylightphase` / `cri_ref`
-- 等参考光源稳定后，再进入颜色空间与 `xyz_to_cct`
+- `blackbody / daylightphase / daylightlocus / cri_ref` 默认链路已完成
+- `xyz_to_cct / cct_to_xyz` 主路径已完成
+- 固定标准光源首批 registry 已完成
+- 下一阶段优先进入 `CAT / deltaE`
+- 固定标准光源后续扩展仍应沿用统一 illuminant registry，而不是分散新增 `f1()`、`led_b1()` 一类 API
 
 ## 9. 暂不做的事项
 

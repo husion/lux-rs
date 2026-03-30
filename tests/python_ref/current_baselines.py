@@ -153,6 +153,43 @@ def main() -> None:
             ).ravel()
         )
     )
+    print(
+        "blackbody_relative_6500="
+        + fmt_vec(lx.blackbody(6500.0, wl3=[360.0, 365.0, 1.0], relative=True).ravel())
+    )
+    print(
+        "blackbody_absolute_6500_560="
+        + fmt_vec(lx.blackbody(6500.0, wl3=[560.0, 560.0, 1.0], relative=False).ravel())
+    )
+    x_d, y_d = lx.daylightlocus(6500.0)
+    print(f"daylightlocus_6500={fmt_vec([x_d, y_d])}")
+    print(
+        "daylightphase_6500="
+        + fmt_vec(lx.daylightphase(6500.0, wl3=[360.0, 365.0, 1.0]).ravel())
+    )
+    print(
+        "daylightphase_3500="
+        + fmt_vec(lx.daylightphase(3500.0, wl3=[360.0, 365.0, 1.0]).ravel())
+    )
+    print(
+        "cri_ref_3000_6500="
+        + fmt_vec(lx.cri_ref([3000.0, 6500.0], wl3=[360.0, 365.0, 1.0]).ravel())
+    )
+    xyz_to_cct_sample = np.array([[100.0, 100.0, 100.0]])
+    cct_sample, duv_sample = lx.xyz_to_cct(xyz_to_cct_sample, out="cct,duv")
+    print(
+        "xyz_to_cct_sample="
+        + fmt_vec([np.ravel(cct_sample)[0], np.ravel(duv_sample)[0]])
+    )
+    print("cct_to_xyz_6500=" + fmt_vec(lx.cct_to_xyz(6500.0).ravel()))
+    print("illuminant_A=" + fmt_vec(lx._CIE_ILLUMINANTS["A"][:, 0:6].ravel()))
+    print("illuminant_D65=" + fmt_vec(lx._CIE_ILLUMINANTS["D65"][:, 0:6].ravel()))
+    print("illuminant_F4=" + fmt_vec(lx._CIE_ILLUMINANTS["F4"][:, 0:6].ravel()))
+    print("illuminant_LED_B1=" + fmt_vec(lx._CIE_ILLUMINANTS["LED_B1"][:, 0:6].ravel()))
+    print(
+        "illuminant_D50="
+        + fmt_vec(lx.daylightphase(5000.0, wl3=[360.0, 365.0, 1.0], cct_is_nominal=True).ravel())
+    )
 
     print(f"getwlr={fmt_vec(lx.getwlr([360, 365, 1]))}")
     print(f"getwld_equal_scalar={fmt_scalar(lx.getwld(np.array([400.0, 410.0, 420.0])))}")
