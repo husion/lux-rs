@@ -54,7 +54,10 @@
   - `src/spectrum.rs`
   - `src/photometry.rs`
   - `src/color.rs`
+  - `src/illuminants.rs`
   - `src/error.rs`
+  - `data/cmfs/`
+  - `data/spds/`
 - 当前测试状态：
   - Rust 单测：56
   - Python parity 集成测试：1
@@ -341,7 +344,8 @@ P0 验收完成标志：
 - 该阶段本质上是“数据资产 + API 收口”，不是新的核心数值算法。
 - 实现时不要继续堆散装函数，优先做统一 registry / lookup 层。
 - `blackbody/daylightphase/cri_ref` 属于“生成型参考光源”，本阶段属于“表驱动固定光源”，两类入口要并存但 API 风格应一致。
-- 当前状态：首批 registry 已完成，但别名体系和更多数据集仍可继续扩展。
+- 当前状态：首批 registry 已完成，相关 CSV 已迁入仓库自有 `data/spds/`，不再依赖 `luxpy/` 目录下的数据文件。
+- 当前未完成项主要是别名体系、更多标准光源数据集，以及后续非默认 CRI / TM-30 用到的混合参考光源策略。
 
 ### Phase P2: 色适应 + 色差
 
@@ -462,6 +466,7 @@ P0 验收完成标志：
 - `cri_ref([3000,6500], wl=[360,365,1])` 已可生成参考谱
 - `cct_to_xyz(6500)` 已建立对拍基线
 - `standard_illuminant('A'/'D50'/'D65'/'F4'/'LED_B1', ...)` 已建立对拍基线
+- 标准光源 CSV 当前位于仓库 `data/spds/`
 
 ## 8. 建议的近期执行顺序
 
@@ -483,6 +488,7 @@ P0 验收完成标志：
 - `blackbody / daylightphase / daylightlocus / cri_ref` 默认链路已完成
 - `xyz_to_cct / cct_to_xyz` 主路径已完成
 - 固定标准光源首批 registry 已完成
+- 光谱静态数据已经开始沉淀到仓库自有 `data/` 目录，后续新增标准光源应沿用同一组织方式
 - 下一阶段优先进入 `CAT / deltaE`
 - 固定标准光源后续扩展仍应沿用统一 illuminant registry，而不是分散新增 `f1()`、`led_b1()` 一类 API
 
