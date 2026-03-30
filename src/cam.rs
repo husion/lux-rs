@@ -91,6 +91,21 @@ pub struct CamUcsAppearance {
     pub b_prime: f64,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CamSpace {
+    JabM,
+    JabC,
+    Ucs(CamUcsType),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CamCoordinates {
+    pub j: f64,
+    pub a: f64,
+    pub b: f64,
+    pub space: CamSpace,
+}
+
 impl CamModel {
     pub fn default_cat_transform(self) -> CatTransform {
         match self {
@@ -266,6 +281,14 @@ impl CamViewingConditions {
     ) -> LuxResult<[f64; 3]> {
         cam_ucs_inverse(appearance, self, ucs_type)
     }
+
+    pub fn forward_coordinates(self, xyz: [f64; 3], space: CamSpace) -> LuxResult<CamCoordinates> {
+        cam_forward_coordinates(xyz, self, space)
+    }
+
+    pub fn inverse_coordinates(self, coordinates: CamCoordinates) -> LuxResult<[f64; 3]> {
+        cam_inverse_coordinates(coordinates, self)
+    }
 }
 
 pub fn cam_naka_rushton(value: f64, parameters: CamNakaRushtonParameters, forward: bool) -> f64 {
@@ -395,6 +418,36 @@ pub fn cam16_forward(xyz: [f64; 3], conditions: CamViewingConditions) -> LuxResu
     cam_forward(xyz, conditions)
 }
 
+pub fn xyz_to_jabm_ciecam16(
+    xyz: [f64; 3],
+    conditions: CamViewingConditions,
+) -> LuxResult<[f64; 3]> {
+    let appearance = cam16_forward(xyz, conditions)?;
+    Ok([appearance.lightness, appearance.a_m, appearance.b_m])
+}
+
+pub fn jabm_ciecam16_to_xyz(
+    jabm: [f64; 3],
+    conditions: CamViewingConditions,
+) -> LuxResult<[f64; 3]> {
+    cam_inverse(cam_appearance_from_jab_m(jabm, conditions), conditions)
+}
+
+pub fn xyz_to_jabc_ciecam16(
+    xyz: [f64; 3],
+    conditions: CamViewingConditions,
+) -> LuxResult<[f64; 3]> {
+    let appearance = cam16_forward(xyz, conditions)?;
+    Ok([appearance.lightness, appearance.a_c, appearance.b_c])
+}
+
+pub fn jabc_ciecam16_to_xyz(
+    jabc: [f64; 3],
+    conditions: CamViewingConditions,
+) -> LuxResult<[f64; 3]> {
+    cam_inverse(cam_appearance_from_jab_c(jabc, conditions), conditions)
+}
+
 pub fn ciecam02_forward(
     xyz: [f64; 3],
     conditions: CamViewingConditions,
@@ -405,6 +458,36 @@ pub fn ciecam02_forward(
         ));
     }
     cam_forward(xyz, conditions)
+}
+
+pub fn xyz_to_jabm_ciecam02(
+    xyz: [f64; 3],
+    conditions: CamViewingConditions,
+) -> LuxResult<[f64; 3]> {
+    let appearance = ciecam02_forward(xyz, conditions)?;
+    Ok([appearance.lightness, appearance.a_m, appearance.b_m])
+}
+
+pub fn jabm_ciecam02_to_xyz(
+    jabm: [f64; 3],
+    conditions: CamViewingConditions,
+) -> LuxResult<[f64; 3]> {
+    cam_inverse(cam_appearance_from_jab_m(jabm, conditions), conditions)
+}
+
+pub fn xyz_to_jabc_ciecam02(
+    xyz: [f64; 3],
+    conditions: CamViewingConditions,
+) -> LuxResult<[f64; 3]> {
+    let appearance = ciecam02_forward(xyz, conditions)?;
+    Ok([appearance.lightness, appearance.a_c, appearance.b_c])
+}
+
+pub fn jabc_ciecam02_to_xyz(
+    jabc: [f64; 3],
+    conditions: CamViewingConditions,
+) -> LuxResult<[f64; 3]> {
+    cam_inverse(cam_appearance_from_jab_c(jabc, conditions), conditions)
 }
 
 pub fn cam_inverse(
@@ -512,6 +595,11 @@ pub fn cam16_ucs_forward(
     cam_ucs_forward(xyz, conditions, ucs_type)
 }
 
+pub fn xyz_to_jab_cam16ucs(xyz: [f64; 3], conditions: CamViewingConditions) -> LuxResult<[f64; 3]> {
+    let appearance = cam16_ucs_forward(xyz, conditions, CamUcsType::Ucs)?;
+    Ok([appearance.j_prime, appearance.a_prime, appearance.b_prime])
+}
+
 pub fn ciecam02_ucs_forward(
     xyz: [f64; 3],
     conditions: CamViewingConditions,
@@ -525,12 +613,78 @@ pub fn ciecam02_ucs_forward(
     cam_ucs_forward(xyz, conditions, ucs_type)
 }
 
+pub fn xyz_to_jab_cam02ucs(xyz: [f64; 3], conditions: CamViewingConditions) -> LuxResult<[f64; 3]> {
+    let appearance = ciecam02_ucs_forward(xyz, conditions, CamUcsType::Ucs)?;
+    Ok([appearance.j_prime, appearance.a_prime, appearance.b_prime])
+}
+
 pub fn cam_ucs_inverse(
     appearance: CamUcsAppearance,
     conditions: CamViewingConditions,
     ucs_type: CamUcsType,
 ) -> LuxResult<[f64; 3]> {
     cam_inverse(cam_appearance_from_ucs(appearance, ucs_type), conditions)
+}
+
+pub fn cam_forward_coordinates(
+    xyz: [f64; 3],
+    conditions: CamViewingConditions,
+    space: CamSpace,
+) -> LuxResult<CamCoordinates> {
+    match space {
+        CamSpace::JabM => {
+            let appearance = cam_forward(xyz, conditions)?;
+            Ok(CamCoordinates {
+                j: appearance.lightness,
+                a: appearance.a_m,
+                b: appearance.b_m,
+                space,
+            })
+        }
+        CamSpace::JabC => {
+            let appearance = cam_forward(xyz, conditions)?;
+            Ok(CamCoordinates {
+                j: appearance.lightness,
+                a: appearance.a_c,
+                b: appearance.b_c,
+                space,
+            })
+        }
+        CamSpace::Ucs(ucs_type) => {
+            let appearance = cam_ucs_forward(xyz, conditions, ucs_type)?;
+            Ok(CamCoordinates {
+                j: appearance.j_prime,
+                a: appearance.a_prime,
+                b: appearance.b_prime,
+                space,
+            })
+        }
+    }
+}
+
+pub fn cam_inverse_coordinates(
+    coordinates: CamCoordinates,
+    conditions: CamViewingConditions,
+) -> LuxResult<[f64; 3]> {
+    match coordinates.space {
+        CamSpace::JabM => cam_inverse(
+            cam_appearance_from_jab_m([coordinates.j, coordinates.a, coordinates.b], conditions),
+            conditions,
+        ),
+        CamSpace::JabC => cam_inverse(
+            cam_appearance_from_jab_c([coordinates.j, coordinates.a, coordinates.b], conditions),
+            conditions,
+        ),
+        CamSpace::Ucs(ucs_type) => cam_ucs_inverse(
+            CamUcsAppearance {
+                j_prime: coordinates.j,
+                a_prime: coordinates.a,
+                b_prime: coordinates.b,
+            },
+            conditions,
+            ucs_type,
+        ),
+    }
 }
 
 pub fn cam16_ucs_inverse(
@@ -546,6 +700,18 @@ pub fn cam16_ucs_inverse(
     cam_ucs_inverse(appearance, conditions, ucs_type)
 }
 
+pub fn jab_cam16ucs_to_xyz(jab: [f64; 3], conditions: CamViewingConditions) -> LuxResult<[f64; 3]> {
+    cam16_ucs_inverse(
+        CamUcsAppearance {
+            j_prime: jab[0],
+            a_prime: jab[1],
+            b_prime: jab[2],
+        },
+        conditions,
+        CamUcsType::Ucs,
+    )
+}
+
 pub fn ciecam02_ucs_inverse(
     appearance: CamUcsAppearance,
     conditions: CamViewingConditions,
@@ -557,6 +723,18 @@ pub fn ciecam02_ucs_inverse(
         ));
     }
     cam_ucs_inverse(appearance, conditions, ucs_type)
+}
+
+pub fn jab_cam02ucs_to_xyz(jab: [f64; 3], conditions: CamViewingConditions) -> LuxResult<[f64; 3]> {
+    ciecam02_ucs_inverse(
+        CamUcsAppearance {
+            j_prime: jab[0],
+            a_prime: jab[1],
+            b_prime: jab[2],
+        },
+        conditions,
+        CamUcsType::Ucs,
+    )
 }
 
 fn cam_naka_rushton_scaled(
@@ -614,6 +792,62 @@ fn cam_appearance_from_ucs(appearance: CamUcsAppearance, ucs_type: CamUcsType) -
         b_m: colorfulness * hue_radians.sin(),
         a_c: chroma * hue_radians.cos(),
         b_c: chroma * hue_radians.sin(),
+    }
+}
+
+fn cam_appearance_from_jab_m(jabm: [f64; 3], conditions: CamViewingConditions) -> CamAppearance {
+    let hue_angle = hue_angle_degrees(jabm[1], jabm[2]);
+    let colorfulness = (jabm[1] * jabm[1] + jabm[2] * jabm[2]).sqrt();
+    let hue_radians = degrees_to_radians(hue_angle);
+    let brightness = (4.0 / conditions.surround_parameters.c)
+        * (jabm[0] / 100.0).sqrt()
+        * (conditions.achromatic_response_white + 4.0)
+        * conditions.fl.powf(0.25);
+    let chroma = colorfulness / conditions.fl.powf(0.25);
+    let saturation = if brightness.abs() <= 1e-15 {
+        0.0
+    } else {
+        100.0 * (colorfulness / brightness).sqrt()
+    };
+    CamAppearance {
+        lightness: jabm[0],
+        brightness,
+        chroma,
+        colorfulness,
+        saturation,
+        hue_angle,
+        a_m: jabm[1],
+        b_m: jabm[2],
+        a_c: chroma * hue_radians.cos(),
+        b_c: chroma * hue_radians.sin(),
+    }
+}
+
+fn cam_appearance_from_jab_c(jabc: [f64; 3], conditions: CamViewingConditions) -> CamAppearance {
+    let hue_angle = hue_angle_degrees(jabc[1], jabc[2]);
+    let chroma = (jabc[1] * jabc[1] + jabc[2] * jabc[2]).sqrt();
+    let colorfulness = chroma * conditions.fl.powf(0.25);
+    let hue_radians = degrees_to_radians(hue_angle);
+    let brightness = (4.0 / conditions.surround_parameters.c)
+        * (jabc[0] / 100.0).sqrt()
+        * (conditions.achromatic_response_white + 4.0)
+        * conditions.fl.powf(0.25);
+    let saturation = if brightness.abs() <= 1e-15 {
+        0.0
+    } else {
+        100.0 * (colorfulness / brightness).sqrt()
+    };
+    CamAppearance {
+        lightness: jabc[0],
+        brightness,
+        chroma,
+        colorfulness,
+        saturation,
+        hue_angle,
+        a_m: colorfulness * hue_radians.cos(),
+        b_m: colorfulness * hue_radians.sin(),
+        a_c: jabc[1],
+        b_c: jabc[2],
     }
 }
 
@@ -835,10 +1069,14 @@ fn validate_positive_finite(value: f64, label: &'static str) -> LuxResult<()> {
 #[cfg(test)]
 mod tests {
     use super::{
-        cam16_forward, cam16_ucs_forward, cam16_viewing_conditions, cam_inverse, cam_naka_rushton,
-        ciecam02_forward, ciecam02_ucs_forward, ciecam02_ucs_inverse, ciecam02_viewing_conditions,
-        CamModel, CamNakaRushtonParameters, CamSurround, CamUcsAppearance, CamUcsType,
-        CamViewingConditions,
+        cam16_forward, cam16_ucs_forward, cam16_viewing_conditions, cam_forward_coordinates,
+        cam_inverse, cam_inverse_coordinates, cam_naka_rushton, ciecam02_forward,
+        ciecam02_ucs_forward, ciecam02_ucs_inverse, ciecam02_viewing_conditions,
+        jab_cam02ucs_to_xyz, jab_cam16ucs_to_xyz, jabc_ciecam02_to_xyz, jabc_ciecam16_to_xyz,
+        jabm_ciecam02_to_xyz, jabm_ciecam16_to_xyz, xyz_to_jab_cam02ucs, xyz_to_jab_cam16ucs,
+        xyz_to_jabc_ciecam02, xyz_to_jabc_ciecam16, xyz_to_jabm_ciecam02, xyz_to_jabm_ciecam16,
+        CamCoordinates, CamModel, CamNakaRushtonParameters, CamSpace, CamSurround,
+        CamUcsAppearance, CamUcsType, CamViewingConditions,
     };
     use crate::color::CatTransform;
 
@@ -1050,5 +1288,164 @@ mod tests {
         assert!((xyz[0] - 19.01).abs() < 1e-10);
         assert!((xyz[1] - 20.0).abs() < 1e-10);
         assert!((xyz[2] - 21.78).abs() < 1e-10);
+    }
+
+    #[test]
+    fn convenience_jabm_and_jabc_wrappers_match_model_paths() {
+        let cam16 = cam16_viewing_conditions(
+            [95.047, 100.0, 108.883],
+            None,
+            100.0,
+            20.0,
+            CamSurround::Average,
+            Some(1.0),
+            None,
+        )
+        .unwrap();
+        let ciecam02 = ciecam02_viewing_conditions(
+            [95.047, 100.0, 108.883],
+            None,
+            100.0,
+            20.0,
+            CamSurround::Average,
+            Some(1.0),
+            None,
+        )
+        .unwrap();
+        let cam16_appearance = cam16_forward([19.01, 20.0, 21.78], cam16).unwrap();
+        assert_eq!(
+            xyz_to_jabm_ciecam16([19.01, 20.0, 21.78], cam16).unwrap(),
+            [
+                cam16_appearance.lightness,
+                cam16_appearance.a_m,
+                cam16_appearance.b_m
+            ]
+        );
+        assert_eq!(
+            xyz_to_jabc_ciecam16([19.01, 20.0, 21.78], cam16).unwrap(),
+            [
+                cam16_appearance.lightness,
+                cam16_appearance.a_c,
+                cam16_appearance.b_c
+            ]
+        );
+        let ciecam02_appearance = ciecam02_forward([19.01, 20.0, 21.78], ciecam02).unwrap();
+        assert_eq!(
+            xyz_to_jabm_ciecam02([19.01, 20.0, 21.78], ciecam02).unwrap(),
+            [
+                ciecam02_appearance.lightness,
+                ciecam02_appearance.a_m,
+                ciecam02_appearance.b_m
+            ]
+        );
+        assert_eq!(
+            xyz_to_jabc_ciecam02([19.01, 20.0, 21.78], ciecam02).unwrap(),
+            [
+                ciecam02_appearance.lightness,
+                ciecam02_appearance.a_c,
+                ciecam02_appearance.b_c
+            ]
+        );
+    }
+
+    #[test]
+    fn convenience_jab_and_ucs_inverse_wrappers_roundtrip() {
+        let cam16 = cam16_viewing_conditions(
+            [95.047, 100.0, 108.883],
+            None,
+            100.0,
+            20.0,
+            CamSurround::Average,
+            Some(1.0),
+            None,
+        )
+        .unwrap();
+        let ciecam02 = ciecam02_viewing_conditions(
+            [95.047, 100.0, 108.883],
+            None,
+            100.0,
+            20.0,
+            CamSurround::Average,
+            Some(1.0),
+            None,
+        )
+        .unwrap();
+        let jabm16 = xyz_to_jabm_ciecam16([19.01, 20.0, 21.78], cam16).unwrap();
+        let xyz16 = jabm_ciecam16_to_xyz(jabm16, cam16).unwrap();
+        assert!((xyz16[0] - 19.01).abs() < 1e-10);
+        assert!((xyz16[1] - 20.0).abs() < 1e-10);
+        assert!((xyz16[2] - 21.78).abs() < 1e-10);
+        let jabc16 = xyz_to_jabc_ciecam16([19.01, 20.0, 21.78], cam16).unwrap();
+        let xyz16c = jabc_ciecam16_to_xyz(jabc16, cam16).unwrap();
+        assert!((xyz16c[0] - 19.01).abs() < 1e-10);
+        let jab16ucs = xyz_to_jab_cam16ucs([19.01, 20.0, 21.78], cam16).unwrap();
+        let xyz16ucs = jab_cam16ucs_to_xyz(jab16ucs, cam16).unwrap();
+        assert!((xyz16ucs[0] - 19.01).abs() < 1e-10);
+
+        let jabm02 = xyz_to_jabm_ciecam02([19.01, 20.0, 21.78], ciecam02).unwrap();
+        let xyz02 = jabm_ciecam02_to_xyz(jabm02, ciecam02).unwrap();
+        assert!((xyz02[0] - 19.01).abs() < 1e-10);
+        assert!((xyz02[1] - 20.0).abs() < 1e-10);
+        assert!((xyz02[2] - 21.78).abs() < 1e-10);
+        let jabc02 = xyz_to_jabc_ciecam02([19.01, 20.0, 21.78], ciecam02).unwrap();
+        let xyz02c = jabc_ciecam02_to_xyz(jabc02, ciecam02).unwrap();
+        assert!((xyz02c[0] - 19.01).abs() < 1e-10);
+        let jab02ucs = xyz_to_jab_cam02ucs([19.01, 20.0, 21.78], ciecam02).unwrap();
+        let xyz02ucs = jab_cam02ucs_to_xyz(jab02ucs, ciecam02).unwrap();
+        assert!((xyz02ucs[0] - 19.01).abs() < 1e-10);
+    }
+
+    #[test]
+    fn coordinate_space_wrappers_match_convenience_functions() {
+        let cam16 = cam16_viewing_conditions(
+            [95.047, 100.0, 108.883],
+            None,
+            100.0,
+            20.0,
+            CamSurround::Average,
+            Some(1.0),
+            None,
+        )
+        .unwrap();
+        let coords = cam_forward_coordinates([19.01, 20.0, 21.78], cam16, CamSpace::JabM).unwrap();
+        assert_eq!(
+            coords,
+            CamCoordinates {
+                j: xyz_to_jabm_ciecam16([19.01, 20.0, 21.78], cam16).unwrap()[0],
+                a: xyz_to_jabm_ciecam16([19.01, 20.0, 21.78], cam16).unwrap()[1],
+                b: xyz_to_jabm_ciecam16([19.01, 20.0, 21.78], cam16).unwrap()[2],
+                space: CamSpace::JabM,
+            }
+        );
+        let xyz = cam_inverse_coordinates(coords, cam16).unwrap();
+        assert!((xyz[0] - 19.01).abs() < 1e-10);
+
+        let ciecam02 = ciecam02_viewing_conditions(
+            [95.047, 100.0, 108.883],
+            None,
+            100.0,
+            20.0,
+            CamSurround::Average,
+            Some(1.0),
+            None,
+        )
+        .unwrap();
+        let ucs = cam_forward_coordinates(
+            [19.01, 20.0, 21.78],
+            ciecam02,
+            CamSpace::Ucs(CamUcsType::Ucs),
+        )
+        .unwrap();
+        assert_eq!(
+            ucs,
+            CamCoordinates {
+                j: xyz_to_jab_cam02ucs([19.01, 20.0, 21.78], ciecam02).unwrap()[0],
+                a: xyz_to_jab_cam02ucs([19.01, 20.0, 21.78], ciecam02).unwrap()[1],
+                b: xyz_to_jab_cam02ucs([19.01, 20.0, 21.78], ciecam02).unwrap()[2],
+                space: CamSpace::Ucs(CamUcsType::Ucs),
+            }
+        );
+        let xyz_ucs = cam_inverse_coordinates(ucs, ciecam02).unwrap();
+        assert!((xyz_ucs[0] - 19.01).abs() < 1e-10);
     }
 }

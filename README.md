@@ -11,120 +11,19 @@ Current repository status, aligned with [`TODO_REFACTOR.md`](./TODO_REFACTOR.md)
 - `P0` base spectral kernel: completed
 - `P1` reference-source and CCT path: completed
 - `P1.5` first standard-illuminant registry: completed
-- `P2` status: `deltaE` initial path completed
-- `P2` status: one-step `CAT` path completed for `Bradford / CAT02 / CAT16 / Sharp / Bianco / CMC / Kries / Judd variants`
-- `P2` status: CAT adaptation-degree and viewing-condition entry points completed
-- `P2` status: CAT mode layer completed for `1>2 / 1>0 / 0>2 / 1>0>2`
-- `P2` status: higher-level CAT context and compiled-adapter utilities completed
-- `P2` status: explicit `Tristimulus / TristimulusSet` color data model completed
+- `P2` status: color transforms, `deltaE`, and CAT utilities completed
 - `P3` status: first CAM / CAM-UCS forward and inverse paths completed
-- `P3` status: first CRI path completed for `CIE Ra`, `CIE Rf`, `Rg`, and `TM-30` result objects
+- `P3` status: first CRI path completed for `CIE Ra`, `CIE Rf / Rg`, and `TM-30` result objects
 - next priority: move into photobiological metrics
 
 At the moment the crate already covers:
 
-- wavelength grid generation compatible with `luxpy.getwlr`
-- wavelength spacing calculation compatible with `luxpy.getwld`
-- `Spectrum` and `SpectralMatrix` data models
-- linear interpolation with linear extrapolation
-- spectrum normalization:
-  - `max`
-  - `area`
-  - `lambda`
-  - radiometric / photometric / quantal targets
-- embedded standard observers:
-  - `1931_2`
-  - `1964_10`
-- photometric and tristimulus pipeline:
-  - `spd_to_power`
-  - `spd_to_ler`
-  - `spd_to_xyz`
-  - `Spectrum` / `SpectralMatrix` are the single and batch entry points for spectral workflows
-- CIE 191:2010 mesopic support:
-  - `get_cie_mesopic_adaptation`
-  - `vlbar_cie_mesopic`
-- reference-source models:
-  - `blackbody`
-  - `daylightlocus`
-  - `daylightphase`
-  - `cri_ref`
-- standard illuminant registry:
-  - `standard_illuminant(name, wl_grid)`
-  - `A`
-  - `D50 / D55 / D65 / D75`
-  - `F1..F12`
-  - CIE LED series
-- CCT / Duv:
-  - `xyz_to_cct`
-  - `cct_to_xyz`
-- color transforms:
-  - `XYZ <-> Yxy`
-  - `XYZ <-> Yuv`
-  - `XYZ <-> Lab`
-  - `XYZ <-> Luv`
-  - `XYZ <-> LMS`
-  - `XYZ <-> sRGB`
-  - explicit `Tristimulus` / `TristimulusSet` wrappers are now the recommended single and batch workflow
-- color difference:
-  - `deltaE` from `XYZ + white point` via `CIE76`
-  - `deltaE` from `XYZ + white point` via `CIEDE2000`
-- chromatic adaptation:
-  - `cat_apply`
-  - `cat_apply_mode`
-  - `cat_apply_with_conditions`
-  - `cat_apply_context`
-  - `CatViewingConditions`
-  - `CatContext`
-  - `CatAdapter`
-  - `cat_compile`
-  - `cat_compile_mode`
-  - `cat_compile_with_conditions`
-  - `cat_compile_mode_with_conditions`
-  - `cat_compile_context`
-  - `cat_degree_of_adaptation`
-  - `Bradford`
-  - `CAT02`
-  - `CAT16`
-  - `Sharp`
-  - `Bianco`
-  - `CMC`
-  - `Kries`
-  - `Judd1945`
-  - `Judd1945Cie016`
-  - `Judd1935`
-  - CAT modes: `1>2`, `1>0`, `0>2`, `1>0>2`
-- CAM and CAM-UCS:
-  - `cam_naka_rushton`
-  - `cam16_viewing_conditions`
-  - `ciecam02_viewing_conditions`
-  - `CamModel`
-  - `CamSurround`
-  - `CamViewingConditions`
-  - `cam_forward`
-  - `cam16_forward`
-  - `ciecam02_forward`
-  - `CamAppearance`
-  - `cam_inverse`
-  - `cam_ucs_forward`
-  - `cam16_ucs_forward`
-  - `ciecam02_ucs_forward`
-  - `cam_ucs_inverse`
-  - `cam16_ucs_inverse`
-  - `ciecam02_ucs_inverse`
-  - `CamUcsType`
-  - `CamUcsAppearance`
-  - `Tristimulus` / `TristimulusSet` CAM wrappers
-- CRI and TM-30 core metrics:
-  - `spd_to_ciera`
-  - `spd_to_ciera_result`
-  - `spd_to_cierf`
-  - `spd_to_cierg`
-  - `spd_to_cierf_result`
-  - `spd_to_iesrf`
-  - `spd_to_iesrg`
-  - `spd_to_tm30_result`
-  - `spd_to_ies_tm30_result`
-  - `Spectrum` / `SpectralMatrix` CRI wrappers
+- spectral foundations: wavelength grids, spacing helpers, interpolation, normalization, and single/batch spectrum models
+- observers and photometry: embedded standard observers, tristimulus integration, radiometric / photometric / quantal power, and mesopic support
+- illuminants and reference sources: blackbody, daylight family, CRI reference sources, and a registry for common CIE illuminants and LED series
+- color kernels: CCT, common XYZ-derived transforms, color difference, and chromatic adaptation including viewing-condition and compiled-adapter workflows
+- appearance models: first-pass `CIECAM02`, `CAM16`, `CAM02-UCS`, and `CAM16-UCS` forward / inverse paths plus wrapper APIs on top of the color data models
+- color quality metrics: `CIE Ra`, `CIE Rf / Rg`, and structured `TM-30` result objects for single and batch spectral workflows
 
 ## Why This Repo Exists
 
@@ -187,46 +86,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 For color calculations, use `Tristimulus` and `TristimulusSet` as the primary API.
 For spectral calculations, use `Spectrum` and `SpectralMatrix` as the primary API.
-
-## Public API Snapshot
-
-The root crate currently re-exports these main entry points:
-
-- spectrum:
-  - `getwlr`
-  - `getwld`
-  - `Spectrum`
-  - `SpectralMatrix`
-  - `SpectrumNormalization`
-  - `WavelengthGrid`
-- photometry:
-  - `spd_to_power`
-  - `spd_to_ler`
-  - `spd_to_xyz`
-- illuminants:
-  - `blackbody`
-  - `daylightlocus`
-  - `daylightphase`
-  - `cri_ref`
-  - `standard_illuminant`
-  - `standard_illuminant_names`
-  - `xyz_to_cct`
-  - `cct_to_xyz`
-- color:
-  - `Tristimulus`
-  - `TristimulusSet`
-  - `xyz_to_yxy`, `yxy_to_xyz`
-  - `xyz_to_yuv`, `yuv_to_xyz`
-  - `xyz_to_lab`, `lab_to_xyz`
-  - `xyz_to_luv`, `luv_to_xyz`
-  - `xyz_to_lms`, `lms_to_xyz`
-  - `xyz_to_srgb`, `srgb_to_xyz`
-  - `vlbar_cie_mesopic`
-  - `get_cie_mesopic_adaptation`
-  - `cat_apply`
-  - `cat_apply_mode`
-  - `cat_apply_with_conditions`
-  - `cat_degree_of_adaptation`
 
 ## Roadmap
 
