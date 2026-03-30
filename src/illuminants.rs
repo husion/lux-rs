@@ -20,19 +20,19 @@ const DAYLIGHT_WAVELENGTHS_10NM: [f64; 48] = [
 const DAYLIGHT_S0: [f64; 48] = [
     61.5, 68.8, 63.4, 65.8, 94.8, 104.8, 105.9, 96.8, 113.9, 125.6, 125.5, 121.3, 121.3, 113.5,
     113.1, 110.8, 106.5, 108.8, 105.3, 104.4, 100.0, 96.0, 95.1, 89.1, 90.5, 90.3, 88.4, 84.0,
-    85.1, 81.9, 82.6, 84.9, 81.3, 71.9, 74.3, 76.4, 63.3, 71.7, 77.0, 65.2, 47.7, 68.6, 65.0,
-    66.0, 61.0, 53.3, 58.9, 61.9,
+    85.1, 81.9, 82.6, 84.9, 81.3, 71.9, 74.3, 76.4, 63.3, 71.7, 77.0, 65.2, 47.7, 68.6, 65.0, 66.0,
+    61.0, 53.3, 58.9, 61.9,
 ];
 const DAYLIGHT_S1: [f64; 48] = [
-    38.0, 42.4, 38.5, 35.0, 43.4, 46.3, 43.9, 37.1, 36.7, 35.9, 32.6, 27.9, 24.3, 20.1, 16.2,
-    13.2, 8.6, 6.1, 4.2, 1.9, 0.0, -1.6, -3.5, -3.5, -5.8, -7.2, -8.6, -9.5, -10.9, -10.7,
-    -12.0, -14.0, -13.6, -12.0, -13.3, -12.9, -10.6, -11.6, -12.2, -10.2, -7.8, -11.2, -10.4,
-    -10.6, -9.7, -8.3, -9.3, -9.8,
+    38.0, 42.4, 38.5, 35.0, 43.4, 46.3, 43.9, 37.1, 36.7, 35.9, 32.6, 27.9, 24.3, 20.1, 16.2, 13.2,
+    8.6, 6.1, 4.2, 1.9, 0.0, -1.6, -3.5, -3.5, -5.8, -7.2, -8.6, -9.5, -10.9, -10.7, -12.0, -14.0,
+    -13.6, -12.0, -13.3, -12.9, -10.6, -11.6, -12.2, -10.2, -7.8, -11.2, -10.4, -10.6, -9.7, -8.3,
+    -9.3, -9.8,
 ];
 const DAYLIGHT_S2: [f64; 48] = [
     5.3, 6.1, 3.0, 1.2, -1.1, -0.5, -0.7, -1.2, -2.6, -2.9, -2.8, -2.6, -2.6, -1.8, -1.5, -1.3,
-    -1.2, -1.0, -0.5, -0.3, 0.0, 0.2, 0.5, 2.1, 3.2, 4.1, 4.7, 5.1, 6.7, 7.3, 8.6, 9.8, 10.2,
-    8.3, 9.6, 8.5, 7.0, 7.6, 8.0, 6.7, 5.2, 7.4, 6.8, 7.0, 6.4, 5.5, 6.1, 6.5,
+    -1.2, -1.0, -0.5, -0.3, 0.0, 0.2, 0.5, 2.1, 3.2, 4.1, 4.7, 5.1, 6.7, 7.3, 8.6, 9.8, 10.2, 8.3,
+    9.6, 8.5, 7.0, 7.6, 8.0, 6.7, 5.2, 7.4, 6.8, 7.0, 6.4, 5.5, 6.1, 6.5,
 ];
 const DAYLIGHT_I: f64 = 0.0241;
 const DAYLIGHT_J: f64 = 0.2562;
@@ -50,8 +50,7 @@ const CCT_SEARCH_SAMPLES: usize = 256;
 const CIE_A_CSV: &str = include_str!("../data/spds/CIE_A.csv");
 const CIE_D65_CSV: &str = include_str!("../data/spds/CIE_D65.csv");
 const CIE_F_SERIES_CSV: &str = include_str!("../data/spds/CIE_F_1to12_1nm.csv");
-const CIE_LED_SERIES_CSV: &str =
-    include_str!("../data/spds/CIE_LED_B1toB5_BH1_RGB1_V1_V2.csv");
+const CIE_LED_SERIES_CSV: &str = include_str!("../data/spds/CIE_LED_B1toB5_BH1_RGB1_V1_V2.csv");
 const LED_NAMES: [&str; 9] = [
     "LED_B1", "LED_B2", "LED_B3", "LED_B4", "LED_B5", "LED_BH1", "LED_RGB1", "LED_V1", "LED_V2",
 ];
@@ -121,10 +120,14 @@ pub fn daylightlocus(
     };
 
     let x_d = if cct < 7000.0 {
-        -4.607 * (1e3 / cct).powi(3) + 2.9678 * (1e3 / cct).powi(2) + 0.09911 * (1e3 / cct)
+        -4.607 * (1e3 / cct).powi(3)
+            + 2.9678 * (1e3 / cct).powi(2)
+            + 0.09911 * (1e3 / cct)
             + 0.244_063
     } else {
-        -2.0064 * (1e3 / cct).powi(3) + 1.9018 * (1e3 / cct).powi(2) + 0.24748 * (1e3 / cct)
+        -2.0064 * (1e3 / cct).powi(3)
+            + 1.9018 * (1e3 / cct).powi(2)
+            + 0.24748 * (1e3 / cct)
             + 0.23704
     };
     let y_d = -3.0 * x_d.powi(2) + 2.87 * x_d - 0.275;
@@ -307,8 +310,7 @@ pub fn xyz_to_cct(xyz: [f64; 3], observer: Observer) -> LuxResult<(f64, f64)> {
 
 fn planck_spectral_radiance(wavelength_nm: f64, cct: f64, refractive_index: f64) -> f64 {
     let wavelength_m = wavelength_nm * 1e-9;
-    let exponent =
-        BLACKBODY_C2 / (refractive_index * wavelength_m * (cct + f64::EPSILON));
+    let exponent = BLACKBODY_C2 / (refractive_index * wavelength_m * (cct + f64::EPSILON));
     (1.0 / std::f64::consts::PI)
         * BLACKBODY_C1
         * wavelength_m.powi(-5)

@@ -1,3 +1,8 @@
+use crate::cam::{
+    cam16_forward, cam16_ucs_forward, cam16_ucs_inverse, cam_forward, cam_inverse, cam_ucs_forward,
+    ciecam02_forward, ciecam02_ucs_forward, ciecam02_ucs_inverse, CamAppearance, CamUcsAppearance,
+    CamUcsType, CamViewingConditions as ModelCamViewingConditions,
+};
 use crate::error::{LuxError, LuxResult};
 use crate::spectrum::{SpectralMatrix, Spectrum};
 
@@ -43,6 +48,13 @@ pub enum CatTransform {
     Bradford,
     Cat02,
     Cat16,
+    Sharp,
+    Bianco,
+    Cmc,
+    Kries,
+    Judd1945,
+    Judd1945Cie016,
+    Judd1935,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -59,6 +71,28 @@ pub enum CatMode {
     SourceToBaseline,
     BaselineToTarget,
     TwoStep,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CatViewingConditions {
+    pub surround: CatSurround,
+    pub adapting_luminance: f64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CatContext {
+    pub source_white: [f64; 3],
+    pub target_white: [f64; 3],
+    pub baseline_white: Option<[f64; 3]>,
+    pub transform: CatTransform,
+    pub mode: CatMode,
+    pub source_conditions: CatViewingConditions,
+    pub target_conditions: CatViewingConditions,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CatAdapter {
+    matrix: Matrix3,
 }
 
 pub type Matrix3 = [[f64; 3]; 3];
@@ -200,13 +234,12 @@ impl Tristimulus {
         transform: CatTransform,
         degree_of_adaptation: f64,
     ) -> LuxResult<Self> {
-        Ok(Self::new(cat_apply(
-            self.values,
+        self.cat_apply_adapter(CatAdapter::from_degree(
             source_white,
             target_white,
             transform,
             degree_of_adaptation,
-        )?))
+        )?)
     }
 
     pub fn cat_apply_mode(
@@ -218,15 +251,14 @@ impl Tristimulus {
         mode: CatMode,
         degrees_of_adaptation: [f64; 2],
     ) -> LuxResult<Self> {
-        Ok(Self::new(cat_apply_mode(
-            self.values,
+        self.cat_apply_adapter(CatAdapter::from_mode(
             source_white,
             target_white,
             baseline_white,
             transform,
             mode,
             degrees_of_adaptation,
-        )?))
+        )?)
     }
 
     pub fn cat_apply_with_conditions(
@@ -237,18 +269,135 @@ impl Tristimulus {
         surround: CatSurround,
         adapting_luminance: f64,
     ) -> LuxResult<Self> {
-        Ok(Self::new(cat_apply_with_conditions(
-            self.values,
+        self.cat_apply_adapter(CatAdapter::from_degree(
             source_white,
             target_white,
             transform,
-            surround,
-            adapting_luminance,
-        )?))
+            cat_degree_of_adaptation(surround, adapting_luminance)?,
+        )?)
+    }
+
+    pub fn cat_apply_mode_with_conditions(
+        self,
+        source_white: [f64; 3],
+        target_white: [f64; 3],
+        baseline_white: Option<[f64; 3]>,
+        transform: CatTransform,
+        mode: CatMode,
+        source_conditions: CatViewingConditions,
+        target_conditions: CatViewingConditions,
+    ) -> LuxResult<Self> {
+        self.cat_apply_adapter(CatAdapter::from_conditions(
+            source_white,
+            target_white,
+            baseline_white,
+            transform,
+            mode,
+            source_conditions,
+            target_conditions,
+        )?)
+    }
+
+    pub fn cat_apply_context(self, context: CatContext) -> LuxResult<Self> {
+        self.cat_apply_adapter(CatAdapter::from_context(context)?)
+    }
+
+    pub fn cat_apply_adapter(self, adapter: CatAdapter) -> LuxResult<Self> {
+        Ok(Self::new(adapter.apply(self.values)?))
     }
 
     pub fn delta_e(self, other: Self, white_point: [f64; 3], formula: DeltaEFormula) -> f64 {
         delta_e(self.values, other.values, white_point, formula)
+    }
+
+    pub fn cam_forward(self, conditions: ModelCamViewingConditions) -> LuxResult<CamAppearance> {
+        cam_forward(self.values, conditions)
+    }
+
+    pub fn cam16_forward(self, conditions: ModelCamViewingConditions) -> LuxResult<CamAppearance> {
+        cam16_forward(self.values, conditions)
+    }
+
+    pub fn ciecam02_forward(
+        self,
+        conditions: ModelCamViewingConditions,
+    ) -> LuxResult<CamAppearance> {
+        ciecam02_forward(self.values, conditions)
+    }
+
+    pub fn cam_ucs_forward(
+        self,
+        conditions: ModelCamViewingConditions,
+        ucs_type: CamUcsType,
+    ) -> LuxResult<CamUcsAppearance> {
+        cam_ucs_forward(self.values, conditions, ucs_type)
+    }
+
+    pub fn cam16_ucs_forward(
+        self,
+        conditions: ModelCamViewingConditions,
+        ucs_type: CamUcsType,
+    ) -> LuxResult<CamUcsAppearance> {
+        cam16_ucs_forward(self.values, conditions, ucs_type)
+    }
+
+    pub fn ciecam02_ucs_forward(
+        self,
+        conditions: ModelCamViewingConditions,
+        ucs_type: CamUcsType,
+    ) -> LuxResult<CamUcsAppearance> {
+        ciecam02_ucs_forward(self.values, conditions, ucs_type)
+    }
+
+    pub fn cam_inverse(self, conditions: ModelCamViewingConditions) -> LuxResult<Self> {
+        Ok(Self::new(cam_inverse(
+            CamAppearance {
+                lightness: self.values[0],
+                brightness: 0.0,
+                chroma: 0.0,
+                colorfulness: (self.values[1] * self.values[1] + self.values[2] * self.values[2])
+                    .sqrt(),
+                saturation: 0.0,
+                hue_angle: 0.0,
+                a_m: self.values[1],
+                b_m: self.values[2],
+                a_c: 0.0,
+                b_c: 0.0,
+            },
+            conditions,
+        )?))
+    }
+
+    pub fn cam16_ucs_inverse(
+        self,
+        conditions: ModelCamViewingConditions,
+        ucs_type: CamUcsType,
+    ) -> LuxResult<Self> {
+        Ok(Self::new(cam16_ucs_inverse(
+            CamUcsAppearance {
+                j_prime: self.values[0],
+                a_prime: self.values[1],
+                b_prime: self.values[2],
+            },
+            conditions,
+            ucs_type,
+        )?))
+    }
+
+    pub fn ciecam02_ucs_inverse(
+        self,
+        conditions: ModelCamViewingConditions,
+        ucs_type: CamUcsType,
+    ) -> LuxResult<Self> {
+        Ok(Self::new(ciecam02_ucs_inverse(
+            CamUcsAppearance {
+                j_prime: self.values[0],
+                a_prime: self.values[1],
+                b_prime: self.values[2],
+            },
+            conditions,
+            ucs_type,
+        )?))
     }
 }
 
@@ -396,21 +545,12 @@ impl TristimulusSet {
         transform: CatTransform,
         degree_of_adaptation: f64,
     ) -> LuxResult<Self> {
-        Ok(Self::new(
-            self.values
-                .iter()
-                .copied()
-                .map(|value| {
-                    cat_apply(
-                        value,
-                        source_white,
-                        target_white,
-                        transform,
-                        degree_of_adaptation,
-                    )
-                })
-                .collect::<LuxResult<Vec<_>>>()?,
-        ))
+        self.cat_apply_adapter(CatAdapter::from_degree(
+            source_white,
+            target_white,
+            transform,
+            degree_of_adaptation,
+        )?)
     }
 
     pub fn cat_apply_mode(
@@ -422,23 +562,14 @@ impl TristimulusSet {
         mode: CatMode,
         degrees_of_adaptation: [f64; 2],
     ) -> LuxResult<Self> {
-        Ok(Self::new(
-            self.values
-                .iter()
-                .copied()
-                .map(|value| {
-                    cat_apply_mode(
-                        value,
-                        source_white,
-                        target_white,
-                        baseline_white,
-                        transform,
-                        mode,
-                        degrees_of_adaptation,
-                    )
-                })
-                .collect::<LuxResult<Vec<_>>>()?,
-        ))
+        self.cat_apply_adapter(CatAdapter::from_mode(
+            source_white,
+            target_white,
+            baseline_white,
+            transform,
+            mode,
+            degrees_of_adaptation,
+        )?)
     }
 
     pub fn cat_apply_with_conditions(
@@ -449,20 +580,45 @@ impl TristimulusSet {
         surround: CatSurround,
         adapting_luminance: f64,
     ) -> LuxResult<Self> {
+        self.cat_apply_adapter(CatAdapter::from_degree(
+            source_white,
+            target_white,
+            transform,
+            cat_degree_of_adaptation(surround, adapting_luminance)?,
+        )?)
+    }
+
+    pub fn cat_apply_mode_with_conditions(
+        &self,
+        source_white: [f64; 3],
+        target_white: [f64; 3],
+        baseline_white: Option<[f64; 3]>,
+        transform: CatTransform,
+        mode: CatMode,
+        source_conditions: CatViewingConditions,
+        target_conditions: CatViewingConditions,
+    ) -> LuxResult<Self> {
+        self.cat_apply_adapter(CatAdapter::from_conditions(
+            source_white,
+            target_white,
+            baseline_white,
+            transform,
+            mode,
+            source_conditions,
+            target_conditions,
+        )?)
+    }
+
+    pub fn cat_apply_context(&self, context: CatContext) -> LuxResult<Self> {
+        self.cat_apply_adapter(CatAdapter::from_context(context)?)
+    }
+
+    pub fn cat_apply_adapter(&self, adapter: CatAdapter) -> LuxResult<Self> {
         Ok(Self::new(
             self.values
                 .iter()
                 .copied()
-                .map(|value| {
-                    cat_apply_with_conditions(
-                        value,
-                        source_white,
-                        target_white,
-                        transform,
-                        surround,
-                        adapting_luminance,
-                    )
-                })
+                .map(|value| adapter.apply(value))
                 .collect::<LuxResult<Vec<_>>>()?,
         ))
     }
@@ -487,6 +643,149 @@ impl TristimulusSet {
             .zip(other.values.iter().copied())
             .map(|(left, right)| delta_e(left, right, white_point, formula))
             .collect())
+    }
+
+    pub fn cam_forward(
+        &self,
+        conditions: ModelCamViewingConditions,
+    ) -> LuxResult<Vec<CamAppearance>> {
+        self.values
+            .iter()
+            .copied()
+            .map(|value| cam_forward(value, conditions))
+            .collect()
+    }
+
+    pub fn cam16_forward(
+        &self,
+        conditions: ModelCamViewingConditions,
+    ) -> LuxResult<Vec<CamAppearance>> {
+        self.values
+            .iter()
+            .copied()
+            .map(|value| cam16_forward(value, conditions))
+            .collect()
+    }
+
+    pub fn ciecam02_forward(
+        &self,
+        conditions: ModelCamViewingConditions,
+    ) -> LuxResult<Vec<CamAppearance>> {
+        self.values
+            .iter()
+            .copied()
+            .map(|value| ciecam02_forward(value, conditions))
+            .collect()
+    }
+
+    pub fn cam_ucs_forward(
+        &self,
+        conditions: ModelCamViewingConditions,
+        ucs_type: CamUcsType,
+    ) -> LuxResult<Vec<CamUcsAppearance>> {
+        self.values
+            .iter()
+            .copied()
+            .map(|value| cam_ucs_forward(value, conditions, ucs_type))
+            .collect()
+    }
+
+    pub fn cam16_ucs_forward(
+        &self,
+        conditions: ModelCamViewingConditions,
+        ucs_type: CamUcsType,
+    ) -> LuxResult<Vec<CamUcsAppearance>> {
+        self.values
+            .iter()
+            .copied()
+            .map(|value| cam16_ucs_forward(value, conditions, ucs_type))
+            .collect()
+    }
+
+    pub fn ciecam02_ucs_forward(
+        &self,
+        conditions: ModelCamViewingConditions,
+        ucs_type: CamUcsType,
+    ) -> LuxResult<Vec<CamUcsAppearance>> {
+        self.values
+            .iter()
+            .copied()
+            .map(|value| ciecam02_ucs_forward(value, conditions, ucs_type))
+            .collect()
+    }
+
+    pub fn cam_inverse(&self, conditions: ModelCamViewingConditions) -> LuxResult<Self> {
+        Ok(Self::new(
+            self.values
+                .iter()
+                .copied()
+                .map(|value| {
+                    cam_inverse(
+                        CamAppearance {
+                            lightness: value[0],
+                            brightness: 0.0,
+                            chroma: 0.0,
+                            colorfulness: (value[1] * value[1] + value[2] * value[2]).sqrt(),
+                            saturation: 0.0,
+                            hue_angle: 0.0,
+                            a_m: value[1],
+                            b_m: value[2],
+                            a_c: 0.0,
+                            b_c: 0.0,
+                        },
+                        conditions,
+                    )
+                })
+                .collect::<LuxResult<Vec<_>>>()?,
+        ))
+    }
+
+    pub fn cam16_ucs_inverse(
+        &self,
+        conditions: ModelCamViewingConditions,
+        ucs_type: CamUcsType,
+    ) -> LuxResult<Self> {
+        Ok(Self::new(
+            self.values
+                .iter()
+                .copied()
+                .map(|value| {
+                    cam16_ucs_inverse(
+                        CamUcsAppearance {
+                            j_prime: value[0],
+                            a_prime: value[1],
+                            b_prime: value[2],
+                        },
+                        conditions,
+                        ucs_type,
+                    )
+                })
+                .collect::<LuxResult<Vec<_>>>()?,
+        ))
+    }
+
+    pub fn ciecam02_ucs_inverse(
+        &self,
+        conditions: ModelCamViewingConditions,
+        ucs_type: CamUcsType,
+    ) -> LuxResult<Self> {
+        Ok(Self::new(
+            self.values
+                .iter()
+                .copied()
+                .map(|value| {
+                    ciecam02_ucs_inverse(
+                        CamUcsAppearance {
+                            j_prime: value[0],
+                            a_prime: value[1],
+                            b_prime: value[2],
+                        },
+                        conditions,
+                        ucs_type,
+                    )
+                })
+                .collect::<LuxResult<Vec<_>>>()?,
+        ))
     }
 }
 
@@ -526,6 +825,33 @@ impl CatTransform {
                 [-0.250268, 1.204414, 0.045854],
                 [-0.002079, 0.048952, 0.953127],
             ],
+            Self::Sharp => [
+                [1.2694, -0.0988, -0.1706],
+                [-0.8364, 1.8006, 0.0357],
+                [0.0297, -0.0315, 1.0018],
+            ],
+            Self::Bianco => [
+                [0.8752, 0.2787, -0.1539],
+                [-0.8904, 1.8709, 0.0195],
+                [-0.0061, 0.0162, 0.9899],
+            ],
+            Self::Cmc => [
+                [0.7982, 0.3389, -0.1371],
+                [-0.5918, 1.5512, 0.0406],
+                [0.0008, 0.0239, 0.9753],
+            ],
+            Self::Kries => [
+                [0.40024, 0.70760, -0.08081],
+                [-0.22630, 1.16532, 0.04570],
+                [0.0, 0.0, 0.91822],
+            ],
+            Self::Judd1945 => [[0.0, 1.0, 0.0], [-0.460, 1.359, 0.101], [0.0, 0.0, 1.0]],
+            Self::Judd1945Cie016 => [[0.0, 1.0, 0.0], [-0.460, 1.360, 0.102], [0.0, 0.0, 1.0]],
+            Self::Judd1935 => [
+                [3.1956, 2.4478, -0.1434],
+                [-2.5455, 7.0942, 0.9963],
+                [0.0, 0.0, 1.0],
+            ],
         }
     }
 }
@@ -544,9 +870,213 @@ impl CatSurround {
 impl CatMode {
     pub fn default_baseline_white(self) -> [f64; 3] {
         match self {
-            Self::SourceToBaseline | Self::BaselineToTarget | Self::TwoStep => [100.0, 100.0, 100.0],
+            Self::SourceToBaseline | Self::BaselineToTarget | Self::TwoStep => {
+                [100.0, 100.0, 100.0]
+            }
             Self::OneStep => [100.0, 100.0, 100.0],
         }
+    }
+}
+
+impl CatViewingConditions {
+    pub fn new(surround: CatSurround, adapting_luminance: f64) -> LuxResult<Self> {
+        validate_adapting_luminance(adapting_luminance)?;
+        Ok(Self {
+            surround,
+            adapting_luminance,
+        })
+    }
+
+    pub fn degree_of_adaptation(self) -> LuxResult<f64> {
+        cat_degree_of_adaptation(self.surround, self.adapting_luminance)
+    }
+}
+
+impl CatContext {
+    pub fn new(
+        source_white: [f64; 3],
+        target_white: [f64; 3],
+        baseline_white: Option<[f64; 3]>,
+        transform: CatTransform,
+        mode: CatMode,
+        source_conditions: CatViewingConditions,
+        target_conditions: CatViewingConditions,
+    ) -> Self {
+        Self {
+            source_white,
+            target_white,
+            baseline_white,
+            transform,
+            mode,
+            source_conditions,
+            target_conditions,
+        }
+    }
+
+    pub fn baseline_white_or_default(self) -> [f64; 3] {
+        self.baseline_white
+            .unwrap_or(self.mode.default_baseline_white())
+    }
+
+    pub fn degrees_of_adaptation(self) -> LuxResult<[f64; 2]> {
+        cat_mode_degrees_from_conditions(self.mode, self.source_conditions, self.target_conditions)
+    }
+}
+
+impl CatAdapter {
+    pub fn new(matrix: Matrix3) -> Self {
+        Self { matrix }
+    }
+
+    pub fn matrix(self) -> Matrix3 {
+        self.matrix
+    }
+
+    pub fn apply(self, xyz: [f64; 3]) -> LuxResult<[f64; 3]> {
+        validate_xyz_triplet(xyz, "xyz values must be finite")?;
+        Ok(multiply_matrix3_vector3(self.matrix, xyz))
+    }
+
+    pub fn from_degree(
+        source_white: [f64; 3],
+        target_white: [f64; 3],
+        transform: CatTransform,
+        degree_of_adaptation: f64,
+    ) -> LuxResult<Self> {
+        validate_xyz_triplet(source_white, "source white values must be finite")?;
+        validate_xyz_triplet(target_white, "target white values must be finite")?;
+        validate_degree(
+            degree_of_adaptation,
+            "degree_of_adaptation must be finite and within 0..=1",
+        )?;
+
+        let sensor_matrix = transform.matrix();
+        let inverse = invert_matrix3(sensor_matrix);
+        let rgbw_source = multiply_matrix3_vector3(sensor_matrix, source_white);
+        let rgbw_target = multiply_matrix3_vector3(sensor_matrix, target_white);
+        let mut diagonal = [[0.0; 3]; 3];
+
+        for index in 0..3 {
+            if rgbw_source[index].abs() <= EPSILON {
+                return Err(LuxError::InvalidInput(
+                    "source white produces zero CAT sensor response",
+                ));
+            }
+            let ratio = rgbw_target[index] / rgbw_source[index];
+            diagonal[index][index] = degree_of_adaptation * ratio + (1.0 - degree_of_adaptation);
+        }
+
+        Ok(Self::new(multiply_matrix3(
+            inverse,
+            multiply_matrix3(diagonal, sensor_matrix),
+        )))
+    }
+
+    pub fn from_mode(
+        source_white: [f64; 3],
+        target_white: [f64; 3],
+        baseline_white: Option<[f64; 3]>,
+        transform: CatTransform,
+        mode: CatMode,
+        degrees_of_adaptation: [f64; 2],
+    ) -> LuxResult<Self> {
+        validate_xyz_triplet(source_white, "source white values must be finite")?;
+        validate_xyz_triplet(target_white, "target white values must be finite")?;
+        validate_degree(
+            degrees_of_adaptation[0],
+            "degrees_of_adaptation[0] must be finite and within 0..=1",
+        )?;
+        validate_degree(
+            degrees_of_adaptation[1],
+            "degrees_of_adaptation[1] must be finite and within 0..=1",
+        )?;
+
+        let baseline_white = baseline_white.unwrap_or(mode.default_baseline_white());
+        validate_xyz_triplet(baseline_white, "baseline white values must be finite")?;
+
+        match mode {
+            CatMode::OneStep => Self::from_degree(
+                source_white,
+                target_white,
+                transform,
+                degrees_of_adaptation[0],
+            ),
+            CatMode::SourceToBaseline => Self::from_degree(
+                source_white,
+                baseline_white,
+                transform,
+                degrees_of_adaptation[0],
+            ),
+            CatMode::BaselineToTarget => Self::from_degree(
+                baseline_white,
+                target_white,
+                transform,
+                degrees_of_adaptation[0],
+            ),
+            CatMode::TwoStep => {
+                let sensor_matrix = transform.matrix();
+                let inverse = invert_matrix3(sensor_matrix);
+                let rgbw1 = multiply_matrix3_vector3(sensor_matrix, source_white);
+                let rgbw2 = multiply_matrix3_vector3(sensor_matrix, target_white);
+                let rgbw0 = multiply_matrix3_vector3(sensor_matrix, baseline_white);
+                let mut diagonal = [[0.0; 3]; 3];
+
+                for index in 0..3 {
+                    if rgbw1[index].abs() <= EPSILON {
+                        return Err(LuxError::InvalidInput(
+                            "source white produces zero CAT sensor response",
+                        ));
+                    }
+                    if rgbw2[index].abs() <= EPSILON {
+                        return Err(LuxError::InvalidInput(
+                            "target white produces zero CAT sensor response",
+                        ));
+                    }
+                    let scale10 = degrees_of_adaptation[0] * (rgbw0[index] / rgbw1[index])
+                        + (1.0 - degrees_of_adaptation[0]);
+                    let scale20 = degrees_of_adaptation[1] * (rgbw0[index] / rgbw2[index])
+                        + (1.0 - degrees_of_adaptation[1]);
+                    diagonal[index][index] = scale10 / scale20;
+                }
+
+                Ok(Self::new(multiply_matrix3(
+                    inverse,
+                    multiply_matrix3(diagonal, sensor_matrix),
+                )))
+            }
+        }
+    }
+
+    pub fn from_conditions(
+        source_white: [f64; 3],
+        target_white: [f64; 3],
+        baseline_white: Option<[f64; 3]>,
+        transform: CatTransform,
+        mode: CatMode,
+        source_conditions: CatViewingConditions,
+        target_conditions: CatViewingConditions,
+    ) -> LuxResult<Self> {
+        let degrees = cat_mode_degrees_from_conditions(mode, source_conditions, target_conditions)?;
+        Self::from_mode(
+            source_white,
+            target_white,
+            baseline_white,
+            transform,
+            mode,
+            degrees,
+        )
+    }
+
+    pub fn from_context(context: CatContext) -> LuxResult<Self> {
+        Self::from_conditions(
+            context.source_white,
+            context.target_white,
+            context.baseline_white,
+            context.transform,
+            context.mode,
+            context.source_conditions,
+            context.target_conditions,
+        )
     }
 }
 
@@ -677,6 +1207,18 @@ fn multiply_matrix3_vector3(matrix: Matrix3, vector: [f64; 3]) -> [f64; 3] {
     ]
 }
 
+fn multiply_matrix3(left: Matrix3, right: Matrix3) -> Matrix3 {
+    let mut out = [[0.0; 3]; 3];
+    for row in 0..3 {
+        for col in 0..3 {
+            out[row][col] = left[row][0] * right[0][col]
+                + left[row][1] * right[1][col]
+                + left[row][2] * right[2][col];
+        }
+    }
+    out
+}
+
 fn clamp(value: f64, min: f64, max: f64) -> f64 {
     value.max(min).min(max)
 }
@@ -705,6 +1247,16 @@ fn validate_xyz_triplet(xyz: [f64; 3], label: &'static str) -> LuxResult<()> {
 fn validate_degree(value: f64, label: &'static str) -> LuxResult<()> {
     if !value.is_finite() || !(0.0..=1.0).contains(&value) {
         Err(LuxError::InvalidInput(label))
+    } else {
+        Ok(())
+    }
+}
+
+fn validate_adapting_luminance(adapting_luminance: f64) -> LuxResult<()> {
+    if !adapting_luminance.is_finite() || adapting_luminance < 0.0 {
+        Err(LuxError::InvalidInput(
+            "adapting_luminance must be finite and non-negative",
+        ))
     } else {
         Ok(())
     }
@@ -816,33 +1368,7 @@ pub fn cat_apply(
     transform: CatTransform,
     degree_of_adaptation: f64,
 ) -> LuxResult<[f64; 3]> {
-    validate_xyz_triplet(xyz, "xyz values must be finite")?;
-    validate_xyz_triplet(source_white, "source white values must be finite")?;
-    validate_xyz_triplet(target_white, "target white values must be finite")?;
-    validate_degree(
-        degree_of_adaptation,
-        "degree_of_adaptation must be finite and within 0..=1",
-    )?;
-
-    let matrix = transform.matrix();
-    let inverse = invert_matrix3(matrix);
-    let rgb = multiply_matrix3_vector3(matrix, xyz);
-    let rgbw_source = multiply_matrix3_vector3(matrix, source_white);
-    let rgbw_target = multiply_matrix3_vector3(matrix, target_white);
-    let mut adapted_rgb = [0.0; 3];
-
-    for index in 0..3 {
-        if rgbw_source[index].abs() <= EPSILON {
-            return Err(LuxError::InvalidInput(
-                "source white produces zero CAT sensor response",
-            ));
-        }
-        let ratio = rgbw_target[index] / rgbw_source[index];
-        let scale = degree_of_adaptation * ratio + (1.0 - degree_of_adaptation);
-        adapted_rgb[index] = rgb[index] * scale;
-    }
-
-    Ok(multiply_matrix3_vector3(inverse, adapted_rgb))
+    cat_compile(source_white, target_white, transform, degree_of_adaptation)?.apply(xyz)
 }
 
 pub fn cat_apply_mode(
@@ -854,88 +1380,65 @@ pub fn cat_apply_mode(
     mode: CatMode,
     degrees_of_adaptation: [f64; 2],
 ) -> LuxResult<[f64; 3]> {
-    validate_xyz_triplet(xyz, "xyz values must be finite")?;
-    validate_xyz_triplet(source_white, "source white values must be finite")?;
-    validate_xyz_triplet(target_white, "target white values must be finite")?;
-    validate_degree(
-        degrees_of_adaptation[0],
-        "degrees_of_adaptation[0] must be finite and within 0..=1",
-    )?;
-    validate_degree(
-        degrees_of_adaptation[1],
-        "degrees_of_adaptation[1] must be finite and within 0..=1",
-    )?;
-
-    let baseline_white = baseline_white.unwrap_or(mode.default_baseline_white());
-    validate_xyz_triplet(baseline_white, "baseline white values must be finite")?;
-
-    match mode {
-        CatMode::OneStep => cat_apply(
-            xyz,
-            source_white,
-            target_white,
-            transform,
-            degrees_of_adaptation[0],
-        ),
-        CatMode::SourceToBaseline => cat_apply(
-            xyz,
-            source_white,
-            baseline_white,
-            transform,
-            degrees_of_adaptation[0],
-        ),
-        CatMode::BaselineToTarget => cat_apply(
-            xyz,
-            baseline_white,
-            target_white,
-            transform,
-            degrees_of_adaptation[0],
-        ),
-        CatMode::TwoStep => {
-            let matrix = transform.matrix();
-            let inverse = invert_matrix3(matrix);
-            let rgb = multiply_matrix3_vector3(matrix, xyz);
-            let rgbw1 = multiply_matrix3_vector3(matrix, source_white);
-            let rgbw2 = multiply_matrix3_vector3(matrix, target_white);
-            let rgbw0 = multiply_matrix3_vector3(matrix, baseline_white);
-            let mut adapted_rgb = [0.0; 3];
-
-            for index in 0..3 {
-                if rgbw1[index].abs() <= EPSILON {
-                    return Err(LuxError::InvalidInput(
-                        "source white produces zero CAT sensor response",
-                    ));
-                }
-                if rgbw2[index].abs() <= EPSILON {
-                    return Err(LuxError::InvalidInput(
-                        "target white produces zero CAT sensor response",
-                    ));
-                }
-                let scale10 =
-                    degrees_of_adaptation[0] * (rgbw0[index] / rgbw1[index]) + (1.0 - degrees_of_adaptation[0]);
-                let scale20 =
-                    degrees_of_adaptation[1] * (rgbw0[index] / rgbw2[index]) + (1.0 - degrees_of_adaptation[1]);
-                adapted_rgb[index] = rgb[index] * scale10 / scale20;
-            }
-
-            Ok(multiply_matrix3_vector3(inverse, adapted_rgb))
-        }
-    }
+    cat_compile_mode(
+        source_white,
+        target_white,
+        baseline_white,
+        transform,
+        mode,
+        degrees_of_adaptation,
+    )?
+    .apply(xyz)
 }
 
-pub fn cat_degree_of_adaptation(
-    surround: CatSurround,
-    adapting_luminance: f64,
-) -> LuxResult<f64> {
-    if !adapting_luminance.is_finite() || adapting_luminance < 0.0 {
-        return Err(LuxError::InvalidInput(
-            "adapting_luminance must be finite and non-negative",
-        ));
-    }
+pub fn cat_compile(
+    source_white: [f64; 3],
+    target_white: [f64; 3],
+    transform: CatTransform,
+    degree_of_adaptation: f64,
+) -> LuxResult<CatAdapter> {
+    CatAdapter::from_degree(source_white, target_white, transform, degree_of_adaptation)
+}
+
+pub fn cat_compile_mode(
+    source_white: [f64; 3],
+    target_white: [f64; 3],
+    baseline_white: Option<[f64; 3]>,
+    transform: CatTransform,
+    mode: CatMode,
+    degrees_of_adaptation: [f64; 2],
+) -> LuxResult<CatAdapter> {
+    CatAdapter::from_mode(
+        source_white,
+        target_white,
+        baseline_white,
+        transform,
+        mode,
+        degrees_of_adaptation,
+    )
+}
+
+pub fn cat_degree_of_adaptation(surround: CatSurround, adapting_luminance: f64) -> LuxResult<f64> {
+    validate_adapting_luminance(adapting_luminance)?;
 
     let factor = surround.factor();
     let degree = factor * (1.0 - (1.0 / 3.6) * ((-adapting_luminance - 42.0) / 92.0).exp());
     Ok(clamp(degree, 0.0, 1.0))
+}
+
+pub fn cat_mode_degrees_from_conditions(
+    mode: CatMode,
+    source_conditions: CatViewingConditions,
+    target_conditions: CatViewingConditions,
+) -> LuxResult<[f64; 2]> {
+    let source_degree = source_conditions.degree_of_adaptation()?;
+    let target_degree = target_conditions.degree_of_adaptation()?;
+
+    Ok(match mode {
+        CatMode::OneStep | CatMode::SourceToBaseline => [source_degree, source_degree],
+        CatMode::BaselineToTarget => [target_degree, target_degree],
+        CatMode::TwoStep => [source_degree, target_degree],
+    })
 }
 
 pub fn cat_apply_with_conditions(
@@ -946,8 +1449,75 @@ pub fn cat_apply_with_conditions(
     surround: CatSurround,
     adapting_luminance: f64,
 ) -> LuxResult<[f64; 3]> {
+    cat_compile_with_conditions(
+        source_white,
+        target_white,
+        transform,
+        surround,
+        adapting_luminance,
+    )?
+    .apply(xyz)
+}
+
+pub fn cat_apply_mode_with_conditions(
+    xyz: [f64; 3],
+    source_white: [f64; 3],
+    target_white: [f64; 3],
+    baseline_white: Option<[f64; 3]>,
+    transform: CatTransform,
+    mode: CatMode,
+    source_conditions: CatViewingConditions,
+    target_conditions: CatViewingConditions,
+) -> LuxResult<[f64; 3]> {
+    cat_compile_mode_with_conditions(
+        source_white,
+        target_white,
+        baseline_white,
+        transform,
+        mode,
+        source_conditions,
+        target_conditions,
+    )
+    .and_then(|adapter| adapter.apply(xyz))
+}
+
+pub fn cat_apply_context(xyz: [f64; 3], context: CatContext) -> LuxResult<[f64; 3]> {
+    cat_compile_context(context)?.apply(xyz)
+}
+
+pub fn cat_compile_with_conditions(
+    source_white: [f64; 3],
+    target_white: [f64; 3],
+    transform: CatTransform,
+    surround: CatSurround,
+    adapting_luminance: f64,
+) -> LuxResult<CatAdapter> {
     let degree = cat_degree_of_adaptation(surround, adapting_luminance)?;
-    cat_apply(xyz, source_white, target_white, transform, degree)
+    cat_compile(source_white, target_white, transform, degree)
+}
+
+pub fn cat_compile_mode_with_conditions(
+    source_white: [f64; 3],
+    target_white: [f64; 3],
+    baseline_white: Option<[f64; 3]>,
+    transform: CatTransform,
+    mode: CatMode,
+    source_conditions: CatViewingConditions,
+    target_conditions: CatViewingConditions,
+) -> LuxResult<CatAdapter> {
+    CatAdapter::from_conditions(
+        source_white,
+        target_white,
+        baseline_white,
+        transform,
+        mode,
+        source_conditions,
+        target_conditions,
+    )
+}
+
+pub fn cat_compile_context(context: CatContext) -> LuxResult<CatAdapter> {
+    CatAdapter::from_context(context)
 }
 
 // sRGB transforms.
@@ -1039,7 +1609,6 @@ pub fn luv_to_xyz(luv: [f64; 3], white_point: [f64; 3]) -> [f64; 3] {
     yuv_to_xyz(yuv)
 }
 
-
 // Color difference.
 
 fn delta_e_lab(lab1: [f64; 3], lab2: [f64; 3], formula: DeltaEFormula) -> f64 {
@@ -1063,21 +1632,11 @@ pub fn delta_e(
 }
 
 pub fn delta_e_cie76(xyz1: [f64; 3], xyz2: [f64; 3], white_point: [f64; 3]) -> f64 {
-    delta_e(
-        xyz1,
-        xyz2,
-        white_point,
-        DeltaEFormula::Cie76,
-    )
+    delta_e(xyz1, xyz2, white_point, DeltaEFormula::Cie76)
 }
 
 pub fn delta_e_ciede2000(xyz1: [f64; 3], xyz2: [f64; 3], white_point: [f64; 3]) -> f64 {
-    delta_e(
-        xyz1,
-        xyz2,
-        white_point,
-        DeltaEFormula::Ciede2000,
-    )
+    delta_e(xyz1, xyz2, white_point, DeltaEFormula::Ciede2000)
 }
 
 fn delta_e_cie76_lab(lab1: [f64; 3], lab2: [f64; 3]) -> f64 {
@@ -1323,13 +1882,21 @@ fn load_scotopic_vlbar_on(target_wavelengths: &[f64]) -> LuxResult<Spectrum> {
 
 #[cfg(test)]
 mod tests {
+    use crate::cam::{
+        cam16_viewing_conditions, ciecam02_viewing_conditions, CamSurround as ModelCamSurround,
+        CamUcsType,
+    };
+
     use super::{
-        cat_apply, cat_apply_mode, cat_apply_with_conditions, cat_degree_of_adaptation, delta_e,
-        delta_e_cie76, delta_e_ciede2000, delta_e_cie76_lab, delta_e_ciede2000_lab,
-        get_cie_mesopic_adaptation, lab_to_xyz, lms_to_xyz, luv_to_xyz, srgb_to_xyz,
-        vlbar_cie_mesopic, xyz_to_lab, xyz_to_lms, xyz_to_luv, xyz_to_srgb, xyz_to_yuv,
-        xyz_to_yxy, yuv_to_xyz, yxy_to_xyz, CatMode, CatSurround, CatTransform, DeltaEFormula,
-        Observer, Tristimulus, TristimulusSet,
+        cat_apply, cat_apply_context, cat_apply_mode, cat_apply_mode_with_conditions,
+        cat_apply_with_conditions, cat_compile, cat_compile_context, cat_compile_mode,
+        cat_compile_mode_with_conditions, cat_compile_with_conditions, cat_degree_of_adaptation,
+        cat_mode_degrees_from_conditions, delta_e, delta_e_cie76, delta_e_cie76_lab,
+        delta_e_ciede2000, delta_e_ciede2000_lab, get_cie_mesopic_adaptation, lab_to_xyz,
+        lms_to_xyz, luv_to_xyz, srgb_to_xyz, vlbar_cie_mesopic, xyz_to_lab, xyz_to_lms, xyz_to_luv,
+        xyz_to_srgb, xyz_to_yuv, xyz_to_yxy, yuv_to_xyz, yxy_to_xyz, CatAdapter, CatContext,
+        CatMode, CatSurround, CatTransform, CatViewingConditions, DeltaEFormula, Observer,
+        Tristimulus, TristimulusSet,
     };
 
     #[test]
@@ -1551,6 +2118,111 @@ mod tests {
     }
 
     #[test]
+    fn applies_sharp_chromatic_adaptation() {
+        let adapted = cat_apply(
+            [19.01, 20.0, 21.78],
+            [95.047, 100.0, 108.883],
+            [109.85, 100.0, 35.585],
+            CatTransform::Sharp,
+            1.0,
+        )
+        .unwrap();
+        assert!((adapted[0] - 21.970_337_526_821_627).abs() < 1e-12);
+        assert!((adapted[1] - 19.999_953_773_116_744).abs() < 1e-12);
+        assert!((adapted[2] - 7.118_112_433_644_779).abs() < 1e-12);
+    }
+
+    #[test]
+    fn applies_bianco_chromatic_adaptation() {
+        let adapted = cat_apply(
+            [19.01, 20.0, 21.78],
+            [95.047, 100.0, 108.883],
+            [109.85, 100.0, 35.585],
+            CatTransform::Bianco,
+            1.0,
+        )
+        .unwrap();
+        assert!((adapted[0] - 21.970_237_997_793_32).abs() < 1e-12);
+        assert!((adapted[1] - 19.999_886_291_132_23).abs() < 1e-12);
+        assert!((adapted[2] - 7.118_132_338_899_736).abs() < 1e-12);
+    }
+
+    #[test]
+    fn applies_cmc_chromatic_adaptation() {
+        let adapted = cat_apply(
+            [19.01, 20.0, 21.78],
+            [95.047, 100.0, 108.883],
+            [109.85, 100.0, 35.585],
+            CatTransform::Cmc,
+            1.0,
+        )
+        .unwrap();
+        assert!((adapted[0] - 21.970_245_614_232_79).abs() < 1e-12);
+        assert!((adapted[1] - 19.999_939_194_170_24).abs() < 1e-12);
+        assert!((adapted[2] - 7.118_164_955_975_901).abs() < 1e-12);
+    }
+
+    #[test]
+    fn applies_kries_chromatic_adaptation() {
+        let adapted = cat_apply(
+            [19.01, 20.0, 21.78],
+            [95.047, 100.0, 108.883],
+            [109.85, 100.0, 35.585],
+            CatTransform::Kries,
+            1.0,
+        )
+        .unwrap();
+        assert!((adapted[0] - 21.970_131_711_895_99).abs() < 1e-12);
+        assert!((adapted[1] - 19.999_997_693_482_22).abs() < 1e-12);
+        assert!((adapted[2] - 7.118_111_183_564_011).abs() < 1e-12);
+    }
+
+    #[test]
+    fn applies_judd1945_chromatic_adaptation() {
+        let adapted = cat_apply(
+            [19.01, 20.0, 21.78],
+            [95.047, 100.0, 108.883],
+            [109.85, 100.0, 35.585],
+            CatTransform::Judd1945,
+            1.0,
+        )
+        .unwrap();
+        assert!((adapted[0] - 21.970_117_638_953_994).abs() < 1e-12);
+        assert!((adapted[1] - 20.0).abs() < 1e-12);
+        assert!((adapted[2] - 7.118_111_183_564_01).abs() < 1e-12);
+    }
+
+    #[test]
+    fn applies_judd1945_cie016_chromatic_adaptation() {
+        let adapted = cat_apply(
+            [19.01, 20.0, 21.78],
+            [95.047, 100.0, 108.883],
+            [109.85, 100.0, 35.585],
+            CatTransform::Judd1945Cie016,
+            1.0,
+        )
+        .unwrap();
+        assert!((adapted[0] - 21.970_113_747_706_712).abs() < 1e-12);
+        assert!((adapted[1] - 20.0).abs() < 1e-12);
+        assert!((adapted[2] - 7.118_111_183_564_01).abs() < 1e-12);
+    }
+
+    #[test]
+    fn applies_judd1935_chromatic_adaptation() {
+        let adapted = cat_apply(
+            [19.01, 20.0, 21.78],
+            [95.047, 100.0, 108.883],
+            [109.85, 100.0, 35.585],
+            CatTransform::Judd1935,
+            1.0,
+        )
+        .unwrap();
+        assert!((adapted[0] - 21.970_394_658_200_817).abs() < 1e-12);
+        assert!((adapted[1] - 20.000_197_359_403_444).abs() < 1e-12);
+        assert!((adapted[2] - 7.118_111_183_564_01).abs() < 1e-12);
+    }
+
+    #[test]
     fn rejects_invalid_adaptation_degree() {
         let err = cat_apply(
             [19.01, 20.0, 21.78],
@@ -1585,6 +2257,13 @@ mod tests {
     }
 
     #[test]
+    fn computes_degree_of_adaptation_from_viewing_conditions() {
+        let conditions = CatViewingConditions::new(CatSurround::Average, 318.31).unwrap();
+        let degree = conditions.degree_of_adaptation().unwrap();
+        assert!((degree - 0.994_468_780_088_437_4).abs() < 1e-12);
+    }
+
+    #[test]
     fn applies_chromatic_adaptation_with_conditions() {
         let adapted = cat_apply_with_conditions(
             [19.01, 20.0, 21.78],
@@ -1598,6 +2277,318 @@ mod tests {
         assert!((adapted[0] - 21.953_829_568_576_072).abs() < 1e-12);
         assert!((adapted[1] - 19.999_902_159_702_89).abs() < 1e-12);
         assert!((adapted[2] - 7.199_154_229_436_402).abs() < 1e-12);
+    }
+
+    #[test]
+    fn resolves_mode_degrees_from_viewing_conditions() {
+        let source = CatViewingConditions::new(CatSurround::Average, 318.31).unwrap();
+        let target = CatViewingConditions::new(CatSurround::Dim, 20.0).unwrap();
+        let degrees = cat_mode_degrees_from_conditions(CatMode::TwoStep, source, target).unwrap();
+        assert!((degrees[0] - 0.994_468_780_088_437_4).abs() < 1e-12);
+        assert!((degrees[1] - 0.772_572_461_903_455_1).abs() < 1e-12);
+
+        let target_only =
+            cat_mode_degrees_from_conditions(CatMode::BaselineToTarget, source, target).unwrap();
+        assert!((target_only[0] - 0.772_572_461_903_455_1).abs() < 1e-12);
+    }
+
+    #[test]
+    fn applies_mode_chromatic_adaptation_with_conditions() {
+        let source = CatViewingConditions::new(CatSurround::Average, 318.31).unwrap();
+        let target = CatViewingConditions::new(CatSurround::Dim, 20.0).unwrap();
+        let adapted = cat_apply_mode_with_conditions(
+            [19.01, 20.0, 21.78],
+            [95.047, 100.0, 108.883],
+            [109.85, 100.0, 35.585],
+            Some([100.0, 100.0, 100.0]),
+            CatTransform::Bradford,
+            CatMode::TwoStep,
+            source,
+            target,
+        )
+        .unwrap();
+        let manual = cat_apply_mode(
+            [19.01, 20.0, 21.78],
+            [95.047, 100.0, 108.883],
+            [109.85, 100.0, 35.585],
+            Some([100.0, 100.0, 100.0]),
+            CatTransform::Bradford,
+            CatMode::TwoStep,
+            [
+                source.degree_of_adaptation().unwrap(),
+                target.degree_of_adaptation().unwrap(),
+            ],
+        )
+        .unwrap();
+        assert_eq!(adapted, manual);
+    }
+
+    #[test]
+    fn baseline_to_target_mode_uses_target_conditions_degree() {
+        let source = CatViewingConditions::new(CatSurround::Average, 318.31).unwrap();
+        let target = CatViewingConditions::new(CatSurround::Dim, 20.0).unwrap();
+        let adapted = cat_apply_mode_with_conditions(
+            [19.01, 20.0, 21.78],
+            [95.047, 100.0, 108.883],
+            [109.85, 100.0, 35.585],
+            Some([100.0, 100.0, 100.0]),
+            CatTransform::Bradford,
+            CatMode::BaselineToTarget,
+            source,
+            target,
+        )
+        .unwrap();
+        let manual = cat_apply_mode(
+            [19.01, 20.0, 21.78],
+            [95.047, 100.0, 108.883],
+            [109.85, 100.0, 35.585],
+            Some([100.0, 100.0, 100.0]),
+            CatTransform::Bradford,
+            CatMode::BaselineToTarget,
+            [
+                target.degree_of_adaptation().unwrap(),
+                target.degree_of_adaptation().unwrap(),
+            ],
+        )
+        .unwrap();
+        assert_eq!(adapted, manual);
+    }
+
+    #[test]
+    fn context_exposes_default_baseline_and_mode_degrees() {
+        let context = CatContext::new(
+            [95.047, 100.0, 108.883],
+            [109.85, 100.0, 35.585],
+            None,
+            CatTransform::Bradford,
+            CatMode::TwoStep,
+            CatViewingConditions::new(CatSurround::Average, 318.31).unwrap(),
+            CatViewingConditions::new(CatSurround::Dim, 20.0).unwrap(),
+        );
+        assert_eq!(context.baseline_white_or_default(), [100.0, 100.0, 100.0]);
+        let degrees = context.degrees_of_adaptation().unwrap();
+        assert!((degrees[0] - 0.994_468_780_088_437_4).abs() < 1e-12);
+        assert!((degrees[1] - 0.772_572_461_903_455_1).abs() < 1e-12);
+    }
+
+    #[test]
+    fn applies_chromatic_adaptation_from_context() {
+        let context = CatContext::new(
+            [95.047, 100.0, 108.883],
+            [109.85, 100.0, 35.585],
+            Some([100.0, 100.0, 100.0]),
+            CatTransform::Bradford,
+            CatMode::TwoStep,
+            CatViewingConditions::new(CatSurround::Average, 318.31).unwrap(),
+            CatViewingConditions::new(CatSurround::Dim, 20.0).unwrap(),
+        );
+        let adapted = cat_apply_context([19.01, 20.0, 21.78], context).unwrap();
+        let manual = cat_apply_mode_with_conditions(
+            [19.01, 20.0, 21.78],
+            context.source_white,
+            context.target_white,
+            context.baseline_white,
+            context.transform,
+            context.mode,
+            context.source_conditions,
+            context.target_conditions,
+        )
+        .unwrap();
+        assert_eq!(adapted, manual);
+    }
+
+    #[test]
+    fn compiled_adapter_matches_single_step_helper() {
+        let adapter = CatAdapter::from_degree(
+            [95.047, 100.0, 108.883],
+            [109.85, 100.0, 35.585],
+            CatTransform::Bradford,
+            1.0,
+        )
+        .unwrap();
+        let adapted = adapter.apply([19.01, 20.0, 21.78]).unwrap();
+        let helper = cat_apply(
+            [19.01, 20.0, 21.78],
+            [95.047, 100.0, 108.883],
+            [109.85, 100.0, 35.585],
+            CatTransform::Bradford,
+            1.0,
+        )
+        .unwrap();
+        assert_eq!(adapted, helper);
+    }
+
+    #[test]
+    fn cat_compile_matches_single_step_helper() {
+        let adapter = cat_compile(
+            [95.047, 100.0, 108.883],
+            [109.85, 100.0, 35.585],
+            CatTransform::Bradford,
+            1.0,
+        )
+        .unwrap();
+        let adapted = adapter.apply([19.01, 20.0, 21.78]).unwrap();
+        let helper = cat_apply(
+            [19.01, 20.0, 21.78],
+            [95.047, 100.0, 108.883],
+            [109.85, 100.0, 35.585],
+            CatTransform::Bradford,
+            1.0,
+        )
+        .unwrap();
+        assert_eq!(adapted, helper);
+    }
+
+    #[test]
+    fn compiled_mode_adapter_matches_mode_helper() {
+        let adapter = CatAdapter::from_mode(
+            [95.047, 100.0, 108.883],
+            [109.85, 100.0, 35.585],
+            Some([100.0, 100.0, 100.0]),
+            CatTransform::Bradford,
+            CatMode::TwoStep,
+            [0.8, 0.6],
+        )
+        .unwrap();
+        let adapted = adapter.apply([19.01, 20.0, 21.78]).unwrap();
+        let helper = cat_apply_mode(
+            [19.01, 20.0, 21.78],
+            [95.047, 100.0, 108.883],
+            [109.85, 100.0, 35.585],
+            Some([100.0, 100.0, 100.0]),
+            CatTransform::Bradford,
+            CatMode::TwoStep,
+            [0.8, 0.6],
+        )
+        .unwrap();
+        assert_eq!(adapted, helper);
+    }
+
+    #[test]
+    fn cat_compile_mode_matches_mode_helper() {
+        let adapter = cat_compile_mode(
+            [95.047, 100.0, 108.883],
+            [109.85, 100.0, 35.585],
+            Some([100.0, 100.0, 100.0]),
+            CatTransform::Bradford,
+            CatMode::TwoStep,
+            [0.8, 0.6],
+        )
+        .unwrap();
+        let adapted = adapter.apply([19.01, 20.0, 21.78]).unwrap();
+        let helper = cat_apply_mode(
+            [19.01, 20.0, 21.78],
+            [95.047, 100.0, 108.883],
+            [109.85, 100.0, 35.585],
+            Some([100.0, 100.0, 100.0]),
+            CatTransform::Bradford,
+            CatMode::TwoStep,
+            [0.8, 0.6],
+        )
+        .unwrap();
+        assert_eq!(adapted, helper);
+    }
+
+    #[test]
+    fn compiled_context_adapter_matches_context_helper() {
+        let context = CatContext::new(
+            [95.047, 100.0, 108.883],
+            [109.85, 100.0, 35.585],
+            Some([100.0, 100.0, 100.0]),
+            CatTransform::Bradford,
+            CatMode::TwoStep,
+            CatViewingConditions::new(CatSurround::Average, 318.31).unwrap(),
+            CatViewingConditions::new(CatSurround::Dim, 20.0).unwrap(),
+        );
+        let adapter = CatAdapter::from_context(context).unwrap();
+        let adapted = adapter.apply([19.01, 20.0, 21.78]).unwrap();
+        let helper = cat_apply_context([19.01, 20.0, 21.78], context).unwrap();
+        assert_eq!(adapted, helper);
+    }
+
+    #[test]
+    fn cat_compile_with_conditions_matches_helper() {
+        let adapter = cat_compile_with_conditions(
+            [95.047, 100.0, 108.883],
+            [109.85, 100.0, 35.585],
+            CatTransform::Bradford,
+            CatSurround::Average,
+            318.31,
+        )
+        .unwrap();
+        let adapted = adapter.apply([19.01, 20.0, 21.78]).unwrap();
+        let helper = cat_apply_with_conditions(
+            [19.01, 20.0, 21.78],
+            [95.047, 100.0, 108.883],
+            [109.85, 100.0, 35.585],
+            CatTransform::Bradford,
+            CatSurround::Average,
+            318.31,
+        )
+        .unwrap();
+        assert_eq!(adapted, helper);
+    }
+
+    #[test]
+    fn cat_compile_mode_with_conditions_matches_helper() {
+        let source = CatViewingConditions::new(CatSurround::Average, 318.31).unwrap();
+        let target = CatViewingConditions::new(CatSurround::Dim, 20.0).unwrap();
+        let adapter = cat_compile_mode_with_conditions(
+            [95.047, 100.0, 108.883],
+            [109.85, 100.0, 35.585],
+            Some([100.0, 100.0, 100.0]),
+            CatTransform::Bradford,
+            CatMode::TwoStep,
+            source,
+            target,
+        )
+        .unwrap();
+        let adapted = adapter.apply([19.01, 20.0, 21.78]).unwrap();
+        let helper = cat_apply_mode_with_conditions(
+            [19.01, 20.0, 21.78],
+            [95.047, 100.0, 108.883],
+            [109.85, 100.0, 35.585],
+            Some([100.0, 100.0, 100.0]),
+            CatTransform::Bradford,
+            CatMode::TwoStep,
+            source,
+            target,
+        )
+        .unwrap();
+        assert_eq!(adapted, helper);
+    }
+
+    #[test]
+    fn cat_compile_context_matches_helper() {
+        let context = CatContext::new(
+            [95.047, 100.0, 108.883],
+            [109.85, 100.0, 35.585],
+            Some([100.0, 100.0, 100.0]),
+            CatTransform::Bradford,
+            CatMode::TwoStep,
+            CatViewingConditions::new(CatSurround::Average, 318.31).unwrap(),
+            CatViewingConditions::new(CatSurround::Dim, 20.0).unwrap(),
+        );
+        let adapter = cat_compile_context(context).unwrap();
+        let adapted = adapter.apply([19.01, 20.0, 21.78]).unwrap();
+        let helper = cat_apply_context([19.01, 20.0, 21.78], context).unwrap();
+        assert_eq!(adapted, helper);
+    }
+
+    #[test]
+    fn tristimulus_adapter_wrapper_matches_adapter() {
+        let adapter = CatAdapter::from_degree(
+            [95.047, 100.0, 108.883],
+            [109.85, 100.0, 35.585],
+            CatTransform::Bradford,
+            1.0,
+        )
+        .unwrap();
+        let adapted = Tristimulus::new([19.01, 20.0, 21.78])
+            .cat_apply_adapter(adapter)
+            .unwrap()
+            .values();
+        assert_eq!(adapted, adapter.apply([19.01, 20.0, 21.78]).unwrap());
     }
 
     #[test]
@@ -1664,7 +2655,10 @@ mod tests {
             TristimulusSet::new(xyz.to_vec()).xyz_to_yxy().into_vec(),
             vec![xyz_to_yxy(xyz[0]), xyz_to_yxy(xyz[1])]
         );
-        let yxy = [[0.5, 0.25, 0.5], [0.3, 0.222_222_222_222_222_2, 0.333_333_333_333_333_3]];
+        let yxy = [
+            [0.5, 0.25, 0.5],
+            [0.3, 0.222_222_222_222_222_2, 0.333_333_333_333_333_3],
+        ];
         assert_eq!(
             TristimulusSet::new(yxy.to_vec()).yxy_to_xyz().into_vec(),
             vec![yxy_to_xyz(yxy[0]), yxy_to_xyz(yxy[1])]
@@ -1689,15 +2683,25 @@ mod tests {
         let white = [0.5, 0.5, 0.5];
         let xyz_set = TristimulusSet::new(xyz.to_vec());
         let lab = xyz_set.xyz_to_lab(white).into_vec();
-        assert_eq!(lab, vec![xyz_to_lab(xyz[0], white), xyz_to_lab(xyz[1], white)]);
         assert_eq!(
-            TristimulusSet::new(lab.clone()).lab_to_xyz(white).into_vec(),
+            lab,
+            vec![xyz_to_lab(xyz[0], white), xyz_to_lab(xyz[1], white)]
+        );
+        assert_eq!(
+            TristimulusSet::new(lab.clone())
+                .lab_to_xyz(white)
+                .into_vec(),
             vec![lab_to_xyz(lab[0], white), lab_to_xyz(lab[1], white)]
         );
         let luv = xyz_set.xyz_to_luv(white).into_vec();
-        assert_eq!(luv, vec![xyz_to_luv(xyz[0], white), xyz_to_luv(xyz[1], white)]);
         assert_eq!(
-            TristimulusSet::new(luv.clone()).luv_to_xyz(white).into_vec(),
+            luv,
+            vec![xyz_to_luv(xyz[0], white), xyz_to_luv(xyz[1], white)]
+        );
+        assert_eq!(
+            TristimulusSet::new(luv.clone())
+                .luv_to_xyz(white)
+                .into_vec(),
             vec![luv_to_xyz(luv[0], white), luv_to_xyz(luv[1], white)]
         );
     }
@@ -1709,7 +2713,10 @@ mod tests {
             .xyz_to_lms(Observer::Cie1931_2)
             .unwrap()
             .into_vec();
-        assert_eq!(lms_many, vec![xyz_to_lms(xyz[0], Observer::Cie1931_2).unwrap(); 2]);
+        assert_eq!(
+            lms_many,
+            vec![xyz_to_lms(xyz[0], Observer::Cie1931_2).unwrap(); 2]
+        );
         let lms_input = [lms_many[0], lms_many[1]];
         assert_eq!(
             TristimulusSet::new(lms_input.to_vec())
@@ -1742,6 +2749,17 @@ mod tests {
     #[test]
     fn batch_cat_transforms_match_scalar_versions() {
         let xyz = [[19.01, 20.0, 21.78], [20.0, 21.0, 22.0]];
+        let source_conditions = CatViewingConditions::new(CatSurround::Average, 318.31).unwrap();
+        let target_conditions = CatViewingConditions::new(CatSurround::Dim, 20.0).unwrap();
+        let context = CatContext::new(
+            [95.047, 100.0, 108.883],
+            [109.85, 100.0, 35.585],
+            Some([100.0, 100.0, 100.0]),
+            CatTransform::Bradford,
+            CatMode::TwoStep,
+            source_conditions,
+            target_conditions,
+        );
         let many = TristimulusSet::new(xyz.to_vec())
             .cat_apply(
                 [95.047, 100.0, 108.883],
@@ -1772,6 +2790,18 @@ mod tests {
                 .unwrap()
             ]
         );
+        let context_many = TristimulusSet::new(xyz.to_vec())
+            .cat_apply_context(context)
+            .unwrap()
+            .into_vec();
+        assert_eq!(context_many[0], cat_apply_context(xyz[0], context).unwrap());
+        let adapter = CatAdapter::from_context(context).unwrap();
+        let adapter_many = TristimulusSet::new(xyz.to_vec())
+            .cat_apply_adapter(adapter)
+            .unwrap()
+            .into_vec();
+        assert_eq!(adapter_many[0], adapter.apply(xyz[0]).unwrap());
+        assert_eq!(adapter_many[1], adapter.apply(xyz[1]).unwrap());
         let conditioned = TristimulusSet::new(xyz.to_vec())
             .cat_apply_with_conditions(
                 [95.047, 100.0, 108.883],
@@ -1818,6 +2848,32 @@ mod tests {
             )
             .unwrap()
         );
+        let mode_conditioned = TristimulusSet::new(xyz.to_vec())
+            .cat_apply_mode_with_conditions(
+                [95.047, 100.0, 108.883],
+                [109.85, 100.0, 35.585],
+                Some([100.0, 100.0, 100.0]),
+                CatTransform::Bradford,
+                CatMode::TwoStep,
+                source_conditions,
+                target_conditions,
+            )
+            .unwrap()
+            .into_vec();
+        assert_eq!(
+            mode_conditioned[0],
+            cat_apply_mode_with_conditions(
+                xyz[0],
+                [95.047, 100.0, 108.883],
+                [109.85, 100.0, 35.585],
+                Some([100.0, 100.0, 100.0]),
+                CatTransform::Bradford,
+                CatMode::TwoStep,
+                source_conditions,
+                target_conditions
+            )
+            .unwrap()
+        );
     }
 
     #[test]
@@ -1832,6 +2888,33 @@ mod tests {
             xyz.xyz_to_lms(Observer::Cie1931_2).unwrap().values(),
             xyz_to_lms([0.25, 0.5, 0.25], Observer::Cie1931_2).unwrap()
         );
+        let cam16_conditions = cam16_viewing_conditions(
+            [95.047, 100.0, 108.883],
+            None,
+            100.0,
+            20.0,
+            ModelCamSurround::Average,
+            Some(1.0),
+            None,
+        )
+        .unwrap();
+        let cam16 = xyz.cam16_forward(cam16_conditions).unwrap();
+        let cam16_scalar = crate::cam::cam16_forward([0.25, 0.5, 0.25], cam16_conditions).unwrap();
+        assert_eq!(cam16, cam16_scalar);
+        let cam16_ucs = xyz
+            .cam16_ucs_forward(cam16_conditions, CamUcsType::Ucs)
+            .unwrap();
+        let cam16_ucs_scalar =
+            crate::cam::cam16_ucs_forward([0.25, 0.5, 0.25], cam16_conditions, CamUcsType::Ucs)
+                .unwrap();
+        assert_eq!(cam16_ucs, cam16_ucs_scalar);
+        let cam16_back =
+            Tristimulus::new([cam16_ucs.j_prime, cam16_ucs.a_prime, cam16_ucs.b_prime])
+                .cam16_ucs_inverse(cam16_conditions, CamUcsType::Ucs)
+                .unwrap();
+        assert!((cam16_back.values()[0] - 0.25).abs() < 1e-10);
+        assert!((cam16_back.values()[1] - 0.5).abs() < 1e-10);
+        assert!((cam16_back.values()[2] - 0.25).abs() < 1e-10);
     }
 
     #[test]
@@ -1855,6 +2938,49 @@ mod tests {
                 xyz_to_lms([0.2, 0.3, 0.4], Observer::Cie1931_2).unwrap()
             ]
         );
+        let ciecam02_conditions = ciecam02_viewing_conditions(
+            [95.047, 100.0, 108.883],
+            None,
+            100.0,
+            20.0,
+            ModelCamSurround::Average,
+            Some(1.0),
+            None,
+        )
+        .unwrap();
+        let cam_many = xyz.ciecam02_forward(ciecam02_conditions).unwrap();
+        let cam_scalar = xyz
+            .values()
+            .iter()
+            .copied()
+            .map(|value| crate::cam::ciecam02_forward(value, ciecam02_conditions).unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(cam_many, cam_scalar);
+        let cam_ucs_many = xyz
+            .ciecam02_ucs_forward(ciecam02_conditions, CamUcsType::Ucs)
+            .unwrap();
+        let cam_ucs_scalar = xyz
+            .values()
+            .iter()
+            .copied()
+            .map(|value| {
+                crate::cam::ciecam02_ucs_forward(value, ciecam02_conditions, CamUcsType::Ucs)
+                    .unwrap()
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(cam_ucs_many, cam_ucs_scalar);
+        let ucs_triplets = TristimulusSet::new(
+            cam_ucs_many
+                .iter()
+                .map(|value| [value.j_prime, value.a_prime, value.b_prime])
+                .collect(),
+        );
+        let xyz_back = ucs_triplets
+            .ciecam02_ucs_inverse(ciecam02_conditions, CamUcsType::Ucs)
+            .unwrap();
+        assert!((xyz_back.values()[0][0] - 0.25).abs() < 1e-10);
+        assert!((xyz_back.values()[0][1] - 0.5).abs() < 1e-10);
+        assert!((xyz_back.values()[0][2] - 0.25).abs() < 1e-10);
     }
 
     #[test]

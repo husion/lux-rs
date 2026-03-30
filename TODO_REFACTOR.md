@@ -50,6 +50,15 @@
     - `XYZ <-> Luv`
     - `XYZ <-> LMS`
     - `XYZ <-> sRGB`
+  - 色适应 / 色差：
+    - `cat_apply`
+    - `cat_apply_mode`
+    - `cat_apply_with_conditions`
+    - `cat_apply_context`
+    - `CatViewingConditions`
+    - `CatContext`
+    - `CatAdapter`
+    - `deltaE`
 - 当前相关文件：
   - `src/spectrum.rs`
   - `src/photometry.rs`
@@ -59,7 +68,7 @@
   - `data/cmfs/`
   - `data/spds/`
 - 当前测试状态：
-  - Rust 单测：56
+  - Rust 单测：111
   - Python parity 集成测试：1
   - `cargo test` 全通过
 
@@ -352,20 +361,29 @@ P0 验收完成标志：
 计划：
 
 - [x] 实现 `cat.apply()` 主路径
-- [ ] 实现适应度计算
+- [x] 实现适应度计算
 - [x] 实现基础 CAT 变换族
   - [x] Bradford
   - [x] CAT02
   - [x] CAT16
+  - [x] Sharp
+  - [x] Bianco
+  - [x] CMC
+  - [x] Kries
+  - [x] Judd1945
+  - [x] Judd1945Cie016
+  - [x] Judd1935
 - [x] 实现 `deltaE`
 
 说明：
 
 - 当前 `CAT` 已提供一步 von Kries 主路径，公开 API 以 `XYZ + source white + target white + transform + D` 形式暴露。
-- 当前已实现的变换矩阵包括 `Bradford`、`CAT02`、`CAT16`。
+- 当前已实现的变换矩阵包括 `Bradford`、`CAT02`、`CAT16`、`Sharp`、`Bianco`、`CMC`、`Kries`、`Judd1945`、`Judd1945Cie016`、`Judd1935`。
 - 当前已补上基于环境参数的适应度 `D` 计算，以及基于观察条件的上层适配入口。
 - 当前已补上 `CatMode` 策略层，覆盖 `1>2`、`1>0`、`0>2`、`1>0>2`。
-- 当前尚未实现的是更多文献模型、批量/矩阵风格 CAT 封装，以及更高层观察条件工具。
+- 当前已补上更高层观察条件工具，包括 `CatViewingConditions`、`CatContext`，以及 `cat_apply_context`。
+- 当前已补上可复用的批量/矩阵风格 CAT 封装，包括预编译 `CatAdapter`、`cat_compile*`、`Tristimulus::cat_apply_adapter()`、`TristimulusSet::cat_apply_adapter()`。
+- 当前尚未实现的是更多文献模型，以及更完整的高层 CAT utility 生态（例如更系统的预计算/缓存策略与进一步的批量工作流封装）。
 - 当前已落地 `deltaE` 首批主路径：
   - [x] `CIE76`
   - [x] `CIEDE2000`
@@ -375,10 +393,10 @@ P0 验收完成标志：
 
 计划：
 
-- [ ] 实现 CIECAM02
-- [ ] 实现 CAM16
-- [ ] 实现 CAM02-UCS / CAM16-UCS
-- [ ] 实现部分 `xyz_to_jab*` wrapper
+- [x] 实现 CIECAM02 首批前向/反向主路径
+- [x] 实现 CAM16 首批前向/反向主路径
+- [x] 实现 CAM02-UCS / CAM16-UCS 首批前向/反向主路径
+- [x] 实现部分 `xyz_to_jab*` wrapper
 - [ ] 实现 CIE Ra
 - [ ] 实现 CIE Rf
 - [ ] 实现 IES TM-30 的核心数值
@@ -388,6 +406,15 @@ P0 验收完成标志：
   - [ ] DER
   - [ ] ELR
   - [ ] blue light hazard
+
+说明：
+
+- 当前已先落地 CAM 前置能力，包括 `cam_naka_rushton`、`CamModel`、`CamSurround`、`CamViewingConditions`，以及 `cam16_viewing_conditions()` / `ciecam02_viewing_conditions()`。
+- 当前这些能力主要负责观察条件、白点适应与响应压缩等底层公共计算，为后续 `CIECAM02` / `CAM16` 正式前向模型提供共享基础。
+- 当前已开始接入首批正式前向模型，提供 `cam_forward()`、`cam16_forward()`、`ciecam02_forward()` 以及 `CamAppearance`，可输出 `J/Q/C/M/s/h` 与 `aM/bM`、`aC/bC`。
+- 当前已补上 `J+aM+bM -> XYZ` 反向路径，以及 `CAM02-UCS / CAM16-UCS` 的 `J'a'b' <-> XYZ` 主路径。
+- 当前已补上 `Tristimulus/TristimulusSet` 风格 CAM / CAM-UCS wrapper。
+- 当前尚未实现的是更完整的属性输入组合反解、专门的批量结果容器，以及更高层 `xyz_to_jab*` 风格便捷 API 家族。
 
 ### Phase P4: 高级扩展与工具箱
 
@@ -502,8 +529,8 @@ P0 验收完成标志：
 - 固定标准光源首批 registry 已完成
 - 光谱静态数据已经开始沉淀到仓库自有 `data/` 目录，后续新增标准光源应沿用同一组织方式
 - `deltaE` 首批主路径已完成
-- `CAT` 的一步主路径、`Bradford/CAT02/CAT16`、`D` / 观察条件入口、以及模式层已完成
-- 下一阶段优先进入更高层的 `CAT` 工具层，或继续补观察者/插值语义
+- `CAT` 的一步主路径、`Bradford/CAT02/CAT16/Sharp/Bianco/CMC/Kries/Judd` 族、`D` / 观察条件入口、模式层、`CatContext`、`CatAdapter` 与 `cat_compile*` 已完成
+- 下一阶段优先补更完整的 CAM inverse 输入组合与更高层 `xyz_to_jab*` 便捷 API
 - 固定标准光源后续扩展仍应沿用统一 illuminant registry，而不是分散新增 `f1()`、`led_b1()` 一类 API
 
 ## 9. 暂不做的事项

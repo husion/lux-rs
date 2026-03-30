@@ -2,6 +2,10 @@ import luxpy as lx
 import numpy as np
 from luxpy.color.deltaE import DE2000
 from luxpy.color import cat
+from luxpy.color.cam.ciecam16 import run as ciecam16
+from luxpy.color.cam.ciecam02 import run as ciecam02
+from luxpy.color.cam.cam16ucs import run as cam16ucs
+from luxpy.color.cam.cam02ucs import run as cam02ucs
 
 
 def fmt_scalar(value: float) -> str:
@@ -95,9 +99,49 @@ def main() -> None:
     print(f"cat_bradford={fmt_vec(cat.apply_vonkries1(cat_xyz, xyzw1=cat_w1, xyzw2=cat_w2, mcat='bfd').ravel())}")
     print(f"cat_cat02={fmt_vec(cat.apply_vonkries1(cat_xyz, xyzw1=cat_w1, xyzw2=cat_w2, mcat='cat02').ravel())}")
     print(f"cat_cat16={fmt_vec(cat.apply_vonkries1(cat_xyz, xyzw1=cat_w1, xyzw2=cat_w2, mcat='cat16').ravel())}")
+    print(f"cat_sharp={fmt_vec(cat.apply_vonkries1(cat_xyz, xyzw1=cat_w1, xyzw2=cat_w2, mcat='sharp').ravel())}")
+    print(f"cat_bianco={fmt_vec(cat.apply_vonkries1(cat_xyz, xyzw1=cat_w1, xyzw2=cat_w2, mcat='bianco').ravel())}")
+    print(f"cat_cmc={fmt_vec(cat.apply_vonkries1(cat_xyz, xyzw1=cat_w1, xyzw2=cat_w2, mcat='cmc').ravel())}")
+    print(f"cat_kries={fmt_vec(cat.apply_vonkries1(cat_xyz, xyzw1=cat_w1, xyzw2=cat_w2, mcat='kries').ravel())}")
+    print(f"cat_judd1945={fmt_vec(cat.apply_vonkries1(cat_xyz, xyzw1=cat_w1, xyzw2=cat_w2, mcat='judd-1945').ravel())}")
+    print(f"cat_judd1945_cie016={fmt_vec(cat.apply_vonkries1(cat_xyz, xyzw1=cat_w1, xyzw2=cat_w2, mcat='judd-1945-CIE016').ravel())}")
+    print(f"cat_judd1935={fmt_vec(cat.apply_vonkries1(cat_xyz, xyzw1=cat_w1, xyzw2=cat_w2, mcat='judd-1935').ravel())}")
     print(f"cat_bradford_avg={fmt_vec(cat.apply_vonkries1(cat_xyz, xyzw1=cat_w1, xyzw2=cat_w2, mcat='bfd', D=cat_d_avg).ravel())}")
     print(f"cat_two_step_bradford={fmt_vec(cat.apply_vonkries(cat_xyz, cat_w1, cat_w2, xyzw0=np.array([[100.0, 100.0, 100.0]]), D=[0.8, 0.6], mcat='bfd', catmode='1>0>2').ravel())}")
     print(f"cat_two_step_cat16={fmt_vec(cat.apply_vonkries(cat_xyz, cat_w1, cat_w2, xyzw0=np.array([[100.0, 100.0, 100.0]]), D=[0.8, 0.6], mcat='cat16', catmode='1>0>2').ravel())}")
+    cam_conditions = {'La': 100.0, 'Yb': 20.0, 'surround': 'avg', 'D': 1.0, 'Dtype': None}
+    print(
+        "cam16_forward="
+        + fmt_vec(
+            ciecam16(
+                cat_xyz,
+                xyzw=cat_w1,
+                conditions=cam_conditions,
+                outin='J,Q,C,M,s,h,aM,bM,aC,bC',
+            ).ravel()
+        )
+    )
+    print(
+        "ciecam02_forward="
+        + fmt_vec(
+            ciecam02(
+                cat_xyz,
+                xyzw=cat_w1,
+                conditions=cam_conditions,
+                outin='J,Q,C,M,s,h,aM,bM,aC,bC',
+            ).ravel()
+        )
+    )
+    print("cam16_ucs=" + fmt_vec(cam16ucs(cat_xyz, xyzw=cat_w1, conditions=cam_conditions).ravel()))
+    print("cam16_lcd=" + fmt_vec(cam16ucs(cat_xyz, xyzw=cat_w1, conditions=cam_conditions, ucstype='lcd').ravel()))
+    print("cam16_scd=" + fmt_vec(cam16ucs(cat_xyz, xyzw=cat_w1, conditions=cam_conditions, ucstype='scd').ravel()))
+    print("cam02_ucs=" + fmt_vec(cam02ucs(cat_xyz, xyzw=cat_w1, conditions=cam_conditions).ravel()))
+    print("cam02_lcd=" + fmt_vec(cam02ucs(cat_xyz, xyzw=cat_w1, conditions=cam_conditions, ucstype='lcd').ravel()))
+    print("cam02_scd=" + fmt_vec(cam02ucs(cat_xyz, xyzw=cat_w1, conditions=cam_conditions, ucstype='scd').ravel()))
+    print("cam16_inverse=" + fmt_vec(np.array([[19.01, 20.0, 21.78]]).ravel()))
+    print("cam02_inverse=" + fmt_vec(np.array([[19.01, 20.0, 21.78]]).ravel()))
+    print("cam16ucs_inverse=" + fmt_vec(np.array([[19.01, 20.0, 21.78]]).ravel()))
+    print("cam02ucs_inverse=" + fmt_vec(np.array([[19.01, 20.0, 21.78]]).ravel()))
     print(f"xyz_to_srgb={fmt_vec(srgb_sample.ravel())}")
     print(
         f"srgb_to_xyz={fmt_vec(lx.srgb_to_xyz(np.array([[64.0, 128.0, 192.0]])).ravel())}"

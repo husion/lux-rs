@@ -3,13 +3,16 @@ use std::path::PathBuf;
 use std::process::Command;
 
 use lux::{
-    blackbody, cat_apply, cat_apply_mode, cat_apply_with_conditions, cat_degree_of_adaptation,
-    cct_to_xyz, cri_ref, daylightlocus, daylightphase, delta_e_cie76, delta_e_ciede2000,
-    get_cie_mesopic_adaptation, getwld, getwlr, lab_to_xyz, lms_to_xyz, luv_to_xyz, spd_to_ler,
-    spd_to_power, spd_to_xyz, srgb_to_xyz, standard_illuminant,
+    blackbody, cam16_forward, cam16_ucs_forward, cam16_ucs_inverse, cam16_viewing_conditions,
+    cam_inverse, cat_apply, cat_apply_mode, cat_apply_with_conditions, cat_degree_of_adaptation,
+    cct_to_xyz, ciecam02_forward, ciecam02_ucs_forward, ciecam02_ucs_inverse,
+    ciecam02_viewing_conditions, cri_ref, daylightlocus, daylightphase, delta_e_cie76,
+    delta_e_ciede2000, get_cie_mesopic_adaptation, getwld, getwlr, lab_to_xyz, lms_to_xyz,
+    luv_to_xyz, spd_to_ler, spd_to_power, spd_to_xyz, srgb_to_xyz, standard_illuminant,
     vlbar_cie_mesopic, xyz_to_cct, xyz_to_lab, xyz_to_lms, xyz_to_luv, xyz_to_srgb, xyz_to_yuv,
-    xyz_to_yxy, yuv_to_xyz, yxy_to_xyz, CatMode, CatSurround, CatTransform, Observer, PowerType,
-    SpectralMatrix, Spectrum, SpectrumNormalization, WavelengthGrid,
+    xyz_to_yxy, yuv_to_xyz, yxy_to_xyz, CamAppearance, CamSurround, CamUcsAppearance, CamUcsType,
+    CatMode, CatSurround, CatTransform, Observer, PowerType, SpectralMatrix, Spectrum,
+    SpectrumNormalization, WavelengthGrid,
 };
 
 fn parse_scalar(value: &str) -> f64 {
@@ -214,7 +217,11 @@ fn current_rust_basics_match_luxpy() {
     let white = [95.047, 100.0, 108.883];
     let cie76_xyz1 = lab_to_xyz([50.0, 2.5, -80.0], white);
     let cie76_xyz2 = lab_to_xyz([50.0, 0.0, -82.5], white);
-    assert_close(delta_e_cie76(cie76_xyz1, cie76_xyz2, white), parse_scalar(&baselines["delta_e_cie76"]), 1e-12);
+    assert_close(
+        delta_e_cie76(cie76_xyz1, cie76_xyz2, white),
+        parse_scalar(&baselines["delta_e_cie76"]),
+        1e-12,
+    );
     let ciede2000_xyz1 = lab_to_xyz([50.0, 2.6772, -79.7751], white);
     let ciede2000_xyz2 = lab_to_xyz([50.0, 0.0, -82.7485], white);
     assert_close(
@@ -256,6 +263,90 @@ fn current_rust_basics_match_luxpy() {
         )
         .unwrap(),
         &parse_vec(&baselines["cat_cat16"]),
+        1e-12,
+    );
+    assert_vec_close(
+        &cat_apply(
+            [19.01, 20.0, 21.78],
+            [95.047, 100.0, 108.883],
+            [109.85, 100.0, 35.585],
+            CatTransform::Sharp,
+            1.0,
+        )
+        .unwrap(),
+        &parse_vec(&baselines["cat_sharp"]),
+        1e-12,
+    );
+    assert_vec_close(
+        &cat_apply(
+            [19.01, 20.0, 21.78],
+            [95.047, 100.0, 108.883],
+            [109.85, 100.0, 35.585],
+            CatTransform::Bianco,
+            1.0,
+        )
+        .unwrap(),
+        &parse_vec(&baselines["cat_bianco"]),
+        1e-12,
+    );
+    assert_vec_close(
+        &cat_apply(
+            [19.01, 20.0, 21.78],
+            [95.047, 100.0, 108.883],
+            [109.85, 100.0, 35.585],
+            CatTransform::Cmc,
+            1.0,
+        )
+        .unwrap(),
+        &parse_vec(&baselines["cat_cmc"]),
+        1e-12,
+    );
+    assert_vec_close(
+        &cat_apply(
+            [19.01, 20.0, 21.78],
+            [95.047, 100.0, 108.883],
+            [109.85, 100.0, 35.585],
+            CatTransform::Kries,
+            1.0,
+        )
+        .unwrap(),
+        &parse_vec(&baselines["cat_kries"]),
+        1e-12,
+    );
+    assert_vec_close(
+        &cat_apply(
+            [19.01, 20.0, 21.78],
+            [95.047, 100.0, 108.883],
+            [109.85, 100.0, 35.585],
+            CatTransform::Judd1945,
+            1.0,
+        )
+        .unwrap(),
+        &parse_vec(&baselines["cat_judd1945"]),
+        1e-12,
+    );
+    assert_vec_close(
+        &cat_apply(
+            [19.01, 20.0, 21.78],
+            [95.047, 100.0, 108.883],
+            [109.85, 100.0, 35.585],
+            CatTransform::Judd1945Cie016,
+            1.0,
+        )
+        .unwrap(),
+        &parse_vec(&baselines["cat_judd1945_cie016"]),
+        1e-12,
+    );
+    assert_vec_close(
+        &cat_apply(
+            [19.01, 20.0, 21.78],
+            [95.047, 100.0, 108.883],
+            [109.85, 100.0, 35.585],
+            CatTransform::Judd1935,
+            1.0,
+        )
+        .unwrap(),
+        &parse_vec(&baselines["cat_judd1935"]),
         1e-12,
     );
     assert_close(
@@ -313,6 +404,186 @@ fn current_rust_basics_match_luxpy() {
         .unwrap(),
         &parse_vec(&baselines["cat_two_step_cat16"]),
         1e-12,
+    );
+    let cam16_conditions = cam16_viewing_conditions(
+        [95.047, 100.0, 108.883],
+        None,
+        100.0,
+        20.0,
+        CamSurround::Average,
+        Some(1.0),
+        None,
+    )
+    .unwrap();
+    let cam16 = cam16_forward([19.01, 20.0, 21.78], cam16_conditions).unwrap();
+    assert_vec_close(
+        &[
+            cam16.lightness,
+            cam16.brightness,
+            cam16.chroma,
+            cam16.colorfulness,
+            cam16.saturation,
+            cam16.hue_angle,
+            cam16.a_m,
+            cam16.b_m,
+            cam16.a_c,
+            cam16.b_c,
+        ],
+        &parse_vec(&baselines["cam16_forward"]),
+        1e-10,
+    );
+    let ciecam02_conditions = ciecam02_viewing_conditions(
+        [95.047, 100.0, 108.883],
+        None,
+        100.0,
+        20.0,
+        CamSurround::Average,
+        Some(1.0),
+        None,
+    )
+    .unwrap();
+    let ciecam02 = ciecam02_forward([19.01, 20.0, 21.78], ciecam02_conditions).unwrap();
+    assert_vec_close(
+        &[
+            ciecam02.lightness,
+            ciecam02.brightness,
+            ciecam02.chroma,
+            ciecam02.colorfulness,
+            ciecam02.saturation,
+            ciecam02.hue_angle,
+            ciecam02.a_m,
+            ciecam02.b_m,
+            ciecam02.a_c,
+            ciecam02.b_c,
+        ],
+        &parse_vec(&baselines["ciecam02_forward"]),
+        1e-10,
+    );
+    let cam16_ucs =
+        cam16_ucs_forward([19.01, 20.0, 21.78], cam16_conditions, CamUcsType::Ucs).unwrap();
+    assert_vec_close(
+        &[cam16_ucs.j_prime, cam16_ucs.a_prime, cam16_ucs.b_prime],
+        &parse_vec(&baselines["cam16_ucs"]),
+        1e-10,
+    );
+    let cam16_lcd =
+        cam16_ucs_forward([19.01, 20.0, 21.78], cam16_conditions, CamUcsType::Lcd).unwrap();
+    assert_vec_close(
+        &[cam16_lcd.j_prime, cam16_lcd.a_prime, cam16_lcd.b_prime],
+        &parse_vec(&baselines["cam16_lcd"]),
+        1e-10,
+    );
+    let cam16_scd =
+        cam16_ucs_forward([19.01, 20.0, 21.78], cam16_conditions, CamUcsType::Scd).unwrap();
+    assert_vec_close(
+        &[cam16_scd.j_prime, cam16_scd.a_prime, cam16_scd.b_prime],
+        &parse_vec(&baselines["cam16_scd"]),
+        1e-10,
+    );
+    let ciecam02_ucs =
+        ciecam02_ucs_forward([19.01, 20.0, 21.78], ciecam02_conditions, CamUcsType::Ucs).unwrap();
+    assert_vec_close(
+        &[
+            ciecam02_ucs.j_prime,
+            ciecam02_ucs.a_prime,
+            ciecam02_ucs.b_prime,
+        ],
+        &parse_vec(&baselines["cam02_ucs"]),
+        1e-10,
+    );
+    let ciecam02_lcd =
+        ciecam02_ucs_forward([19.01, 20.0, 21.78], ciecam02_conditions, CamUcsType::Lcd).unwrap();
+    assert_vec_close(
+        &[
+            ciecam02_lcd.j_prime,
+            ciecam02_lcd.a_prime,
+            ciecam02_lcd.b_prime,
+        ],
+        &parse_vec(&baselines["cam02_lcd"]),
+        1e-10,
+    );
+    let ciecam02_scd =
+        ciecam02_ucs_forward([19.01, 20.0, 21.78], ciecam02_conditions, CamUcsType::Scd).unwrap();
+    assert_vec_close(
+        &[
+            ciecam02_scd.j_prime,
+            ciecam02_scd.a_prime,
+            ciecam02_scd.b_prime,
+        ],
+        &parse_vec(&baselines["cam02_scd"]),
+        1e-10,
+    );
+    let cam16_inverse = cam_inverse(
+        CamAppearance {
+            lightness: cam16.lightness,
+            brightness: 0.0,
+            chroma: 0.0,
+            colorfulness: cam16.colorfulness,
+            saturation: 0.0,
+            hue_angle: 0.0,
+            a_m: cam16.a_m,
+            b_m: cam16.b_m,
+            a_c: 0.0,
+            b_c: 0.0,
+        },
+        cam16_conditions,
+    )
+    .unwrap();
+    assert_vec_close(
+        &cam16_inverse,
+        &parse_vec(&baselines["cam16_inverse"]),
+        1e-10,
+    );
+    let cam02_inverse = cam_inverse(
+        CamAppearance {
+            lightness: ciecam02.lightness,
+            brightness: 0.0,
+            chroma: 0.0,
+            colorfulness: ciecam02.colorfulness,
+            saturation: 0.0,
+            hue_angle: 0.0,
+            a_m: ciecam02.a_m,
+            b_m: ciecam02.b_m,
+            a_c: 0.0,
+            b_c: 0.0,
+        },
+        ciecam02_conditions,
+    )
+    .unwrap();
+    assert_vec_close(
+        &cam02_inverse,
+        &parse_vec(&baselines["cam02_inverse"]),
+        1e-10,
+    );
+    let cam16ucs_inverse = cam16_ucs_inverse(
+        CamUcsAppearance {
+            j_prime: cam16_ucs.j_prime,
+            a_prime: cam16_ucs.a_prime,
+            b_prime: cam16_ucs.b_prime,
+        },
+        cam16_conditions,
+        CamUcsType::Ucs,
+    )
+    .unwrap();
+    assert_vec_close(
+        &cam16ucs_inverse,
+        &parse_vec(&baselines["cam16ucs_inverse"]),
+        1e-10,
+    );
+    let cam02ucs_inverse = ciecam02_ucs_inverse(
+        CamUcsAppearance {
+            j_prime: ciecam02_ucs.j_prime,
+            a_prime: ciecam02_ucs.a_prime,
+            b_prime: ciecam02_ucs.b_prime,
+        },
+        ciecam02_conditions,
+        CamUcsType::Ucs,
+    )
+    .unwrap();
+    assert_vec_close(
+        &cam02ucs_inverse,
+        &parse_vec(&baselines["cam02ucs_inverse"]),
+        1e-10,
     );
     assert_vec_close(
         &xyz_to_lms([0.25, 0.5, 0.25], Observer::Cie1931_2).unwrap(),
@@ -526,7 +797,11 @@ fn current_rust_basics_match_luxpy() {
     for spectrum in cri_ref_spectra.spectra() {
         cri_ref_flat.extend_from_slice(spectrum);
     }
-    assert_vec_close(&cri_ref_flat, &parse_vec(&baselines["cri_ref_3000_6500"]), 1e-9);
+    assert_vec_close(
+        &cri_ref_flat,
+        &parse_vec(&baselines["cri_ref_3000_6500"]),
+        1e-9,
+    );
 
     let (cct_sample, duv_sample) = xyz_to_cct([100.0, 100.0, 100.0], Observer::Cie1931_2).unwrap();
     assert_vec_close(
@@ -546,13 +821,14 @@ fn current_rust_basics_match_luxpy() {
         standard_illuminant("A", Some(WavelengthGrid::new(360.0, 365.0, 1.0).unwrap())).unwrap();
     let mut illuminant_a_flat = illuminant_a.wavelengths().to_vec();
     illuminant_a_flat.extend_from_slice(illuminant_a.values());
-    assert_vec_close(&illuminant_a_flat, &parse_vec(&baselines["illuminant_A"]), 1e-12);
+    assert_vec_close(
+        &illuminant_a_flat,
+        &parse_vec(&baselines["illuminant_A"]),
+        1e-12,
+    );
 
-    let illuminant_d65 = standard_illuminant(
-        "D65",
-        Some(WavelengthGrid::new(360.0, 365.0, 1.0).unwrap()),
-    )
-    .unwrap();
+    let illuminant_d65 =
+        standard_illuminant("D65", Some(WavelengthGrid::new(360.0, 365.0, 1.0).unwrap())).unwrap();
     let mut illuminant_d65_flat = illuminant_d65.wavelengths().to_vec();
     illuminant_d65_flat.extend_from_slice(illuminant_d65.values());
     assert_vec_close(
@@ -584,11 +860,8 @@ fn current_rust_basics_match_luxpy() {
         1e-12,
     );
 
-    let illuminant_d50 = standard_illuminant(
-        "D50",
-        Some(WavelengthGrid::new(360.0, 365.0, 1.0).unwrap()),
-    )
-    .unwrap();
+    let illuminant_d50 =
+        standard_illuminant("D50", Some(WavelengthGrid::new(360.0, 365.0, 1.0).unwrap())).unwrap();
     let mut illuminant_d50_flat = illuminant_d50.wavelengths().to_vec();
     illuminant_d50_flat.extend_from_slice(illuminant_d50.values());
     assert_vec_close(

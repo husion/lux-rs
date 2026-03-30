@@ -12,11 +12,12 @@ Current repository status, aligned with [`TODO_REFACTOR.md`](./TODO_REFACTOR.md)
 - `P1` reference-source and CCT path: completed
 - `P1.5` first standard-illuminant registry: completed
 - `P2` status: `deltaE` initial path completed
-- `P2` status: one-step `CAT` path completed for `Bradford / CAT02 / CAT16`
+- `P2` status: one-step `CAT` path completed for `Bradford / CAT02 / CAT16 / Sharp / Bianco / CMC / Kries / Judd variants`
 - `P2` status: CAT adaptation-degree and viewing-condition entry points completed
 - `P2` status: CAT mode layer completed for `1>2 / 1>0 / 0>2 / 1>0>2`
+- `P2` status: higher-level CAT context and compiled-adapter utilities completed
 - `P2` status: explicit `Tristimulus / TristimulusSet` color data model completed
-- next priority: higher-level color appearance dependencies and broader CAT utility coverage
+- next priority: broaden CAM inverse coverage and then decide whether to add dedicated CAM result containers
 
 At the moment the crate already covers:
 
@@ -69,11 +70,48 @@ At the moment the crate already covers:
   - `cat_apply`
   - `cat_apply_mode`
   - `cat_apply_with_conditions`
+  - `cat_apply_context`
+  - `CatViewingConditions`
+  - `CatContext`
+  - `CatAdapter`
+  - `cat_compile`
+  - `cat_compile_mode`
+  - `cat_compile_with_conditions`
+  - `cat_compile_mode_with_conditions`
+  - `cat_compile_context`
   - `cat_degree_of_adaptation`
   - `Bradford`
   - `CAT02`
   - `CAT16`
+  - `Sharp`
+  - `Bianco`
+  - `CMC`
+  - `Kries`
+  - `Judd1945`
+  - `Judd1945Cie016`
+  - `Judd1935`
   - CAT modes: `1>2`, `1>0`, `0>2`, `1>0>2`
+- CAM and CAM-UCS:
+  - `cam_naka_rushton`
+  - `cam16_viewing_conditions`
+  - `ciecam02_viewing_conditions`
+  - `CamModel`
+  - `CamSurround`
+  - `CamViewingConditions`
+  - `cam_forward`
+  - `cam16_forward`
+  - `ciecam02_forward`
+  - `CamAppearance`
+  - `cam_inverse`
+  - `cam_ucs_forward`
+  - `cam16_ucs_forward`
+  - `ciecam02_ucs_forward`
+  - `cam_ucs_inverse`
+  - `cam16_ucs_inverse`
+  - `ciecam02_ucs_inverse`
+  - `CamUcsType`
+  - `CamUcsAppearance`
+  - `Tristimulus` / `TristimulusSet` CAM wrappers
 
 ## Why This Repo Exists
 
@@ -90,7 +128,7 @@ A local `luxpy/` reference directory may be present in the development workspace
 
 The current crate state is backed by:
 
-- `56` Rust unit tests
+- `111` Rust unit tests
 - `1` Python parity integration test
 - local parity baselines against `luxpy` for:
   - spectral grid helpers
@@ -100,6 +138,11 @@ The current crate state is backed by:
   - `blackbody`, `daylightphase`, `cri_ref`
   - `xyz_to_cct`, `cct_to_xyz`
   - first-batch standard illuminants
+  - one-step and two-step `CAT`
+  - CAT adaptation degree and viewing-condition paths
+  - CAM viewing-condition kernels for `CIECAM02` and `CAM16`
+  - first CAM forward correlates for `CIECAM02` and `CAM16`
+  - CAM-UCS forward and inverse paths for `CAM02-UCS` and `CAM16-UCS`
 
 Parity checks currently run through [`tests/python_parity.rs`](./tests/python_parity.rs) and [`tests/python_ref/current_baselines.py`](./tests/python_ref/current_baselines.py).
 
