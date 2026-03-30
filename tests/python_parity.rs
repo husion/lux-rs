@@ -8,7 +8,8 @@ use lux::{
     cct_to_xyz, ciecam02_forward, ciecam02_ucs_forward, ciecam02_ucs_inverse,
     ciecam02_viewing_conditions, cri_ref, daylightlocus, daylightphase, delta_e_cie76,
     delta_e_ciede2000, get_cie_mesopic_adaptation, getwld, getwlr, lab_to_xyz, lms_to_xyz,
-    luv_to_xyz, spd_to_ler, spd_to_power, spd_to_xyz, srgb_to_xyz, standard_illuminant,
+    luv_to_xyz, spd_to_ciera, spd_to_ciera_special, spd_to_cierf, spd_to_cierf_special,
+    spd_to_cierg, spd_to_ler, spd_to_power, spd_to_xyz, srgb_to_xyz, standard_illuminant,
     vlbar_cie_mesopic, xyz_to_cct, xyz_to_lab, xyz_to_lms, xyz_to_luv, xyz_to_srgb, xyz_to_yuv,
     xyz_to_yxy, yuv_to_xyz, yxy_to_xyz, CamAppearance, CamSurround, CamUcsAppearance, CamUcsType,
     CatMode, CatSurround, CatTransform, Observer, PowerType, SpectralMatrix, Spectrum,
@@ -786,6 +787,58 @@ fn current_rust_basics_match_luxpy() {
         &daylightphase_3500_flat,
         &parse_vec(&baselines["daylightphase_3500"]),
         1e-9,
+    );
+    let d65 = standard_illuminant("D65", None).unwrap();
+    assert_close(
+        spd_to_ciera(&d65).unwrap(),
+        parse_scalar(&baselines["ciera_d65"]),
+        2e-5,
+    );
+    assert_vec_close(
+        &spd_to_ciera_special(&d65).unwrap(),
+        &parse_vec(&baselines["ciera_d65_ri"]),
+        2e-5,
+    );
+    let f4 = standard_illuminant("F4", None).unwrap();
+    assert_close(
+        spd_to_ciera(&f4).unwrap(),
+        parse_scalar(&baselines["ciera_f4"]),
+        2e-5,
+    );
+    assert_vec_close(
+        &spd_to_ciera_special(&f4).unwrap(),
+        &parse_vec(&baselines["ciera_f4_ri"]),
+        2e-5,
+    );
+    assert_close(
+        spd_to_cierf(&d65).unwrap(),
+        parse_scalar(&baselines["cierf_d65"]),
+        5e-3,
+    );
+    assert_close(
+        spd_to_cierg(&d65).unwrap(),
+        parse_scalar(&baselines["cierg_d65"]),
+        5e-3,
+    );
+    assert_vec_close(
+        &spd_to_cierf_special(&d65).unwrap(),
+        &parse_vec(&baselines["cierf_d65_rfi"]),
+        5e-3,
+    );
+    assert_close(
+        spd_to_cierf(&f4).unwrap(),
+        parse_scalar(&baselines["cierf_f4"]),
+        5e-2,
+    );
+    assert_close(
+        spd_to_cierg(&f4).unwrap(),
+        parse_scalar(&baselines["cierg_f4"]),
+        5e-2,
+    );
+    assert_vec_close(
+        &spd_to_cierf_special(&f4).unwrap(),
+        &parse_vec(&baselines["cierf_f4_rfi"]),
+        5e-2,
     );
 
     let cri_ref_spectra = cri_ref(

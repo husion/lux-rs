@@ -17,7 +17,9 @@ Current repository status, aligned with [`TODO_REFACTOR.md`](./TODO_REFACTOR.md)
 - `P2` status: CAT mode layer completed for `1>2 / 1>0 / 0>2 / 1>0>2`
 - `P2` status: higher-level CAT context and compiled-adapter utilities completed
 - `P2` status: explicit `Tristimulus / TristimulusSet` color data model completed
-- next priority: broaden CAM inverse coverage and then decide whether to add dedicated CAM result containers
+- `P3` status: first CAM / CAM-UCS forward and inverse paths completed
+- `P3` status: first CRI path completed for `CIE Ra`, `CIE Rf`, `Rg`, and `TM-30` result objects
+- next priority: move into photobiological metrics
 
 At the moment the crate already covers:
 
@@ -112,6 +114,17 @@ At the moment the crate already covers:
   - `CamUcsType`
   - `CamUcsAppearance`
   - `Tristimulus` / `TristimulusSet` CAM wrappers
+- CRI and TM-30 core metrics:
+  - `spd_to_ciera`
+  - `spd_to_ciera_result`
+  - `spd_to_cierf`
+  - `spd_to_cierg`
+  - `spd_to_cierf_result`
+  - `spd_to_iesrf`
+  - `spd_to_iesrg`
+  - `spd_to_tm30_result`
+  - `spd_to_ies_tm30_result`
+  - `Spectrum` / `SpectralMatrix` CRI wrappers
 
 ## Why This Repo Exists
 
@@ -128,7 +141,7 @@ A local `luxpy/` reference directory may be present in the development workspace
 
 The current crate state is backed by:
 
-- `111` Rust unit tests
+- `130` Rust unit tests
 - `1` Python parity integration test
 - local parity baselines against `luxpy` for:
   - spectral grid helpers
@@ -143,6 +156,9 @@ The current crate state is backed by:
   - CAM viewing-condition kernels for `CIECAM02` and `CAM16`
   - first CAM forward correlates for `CIECAM02` and `CAM16`
   - CAM-UCS forward and inverse paths for `CAM02-UCS` and `CAM16-UCS`
+  - `CIE Ra`
+  - `CIE Rf / Rg`
+  - `TM-30` result objects
 
 Parity checks currently run through [`tests/python_parity.rs`](./tests/python_parity.rs) and [`tests/python_ref/current_baselines.py`](./tests/python_ref/current_baselines.py).
 
@@ -217,10 +233,10 @@ The root crate currently re-exports these main entry points:
 Near-term work, following [`TODO_REFACTOR.md`](./TODO_REFACTOR.md):
 
 1. finish illuminant naming cleanup and alias normalization
-2. broaden higher-level adaptation utilities on top of the CAT mode layer
-3. expand observer sets and interpolation semantics toward broader `luxpy` coverage
+2. start `photobiochem` base metrics
+3. return to broader observer coverage and remaining result-layer polish
 
-Longer-term items such as CAM, CRI/TM-30, photobiological metrics, individual observers, and hyperspectral tooling remain intentionally deferred until the core kernel stays stable.
+Longer-term items such as broader CAM families, TM-30 graphics, photobiological metrics, individual observers, and hyperspectral tooling remain intentionally deferred until the current core stays stable.
 
 ## Relationship To LuxPy
 

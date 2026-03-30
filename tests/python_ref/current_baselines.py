@@ -1,5 +1,6 @@
 import luxpy as lx
 import numpy as np
+from pathlib import Path
 from luxpy.color.deltaE import DE2000
 from luxpy.color import cat
 from luxpy.color.cam.ciecam16 import run as ciecam16
@@ -17,6 +18,7 @@ def fmt_vec(values) -> str:
 
 
 def main() -> None:
+    root = Path(__file__).resolve().parents[2]
     xyzbar_1931 = lx.xyzbar(cieobs="1931_2")
     vlbar_1931, k_1931 = lx.vlbar(cieobs="1931_2", out=2)
     xyzbar_1964 = lx.xyzbar(cieobs="1964_10")
@@ -258,6 +260,19 @@ def main() -> None:
         "daylightphase_3500="
         + fmt_vec(lx.daylightphase(3500.0, wl3=[360.0, 365.0, 1.0]).ravel())
     )
+    d65 = np.loadtxt(root / "data" / "spds" / "CIE_D65.csv", delimiter=",").T
+    f_series = np.loadtxt(root / "data" / "spds" / "CIE_F_1to12_1nm.csv", delimiter=",")
+    f4 = np.vstack((f_series[:, 0], f_series[:, 4]))
+    print(f"ciera_d65={fmt_scalar(lx.cri.spd_to_ciera(d65).ravel()[0])}")
+    print(f"ciera_d65_ri={fmt_vec(lx.cri.spd_to_ciera(d65, out='Rfi').ravel())}")
+    print(f"ciera_f4={fmt_scalar(lx.cri.spd_to_ciera(f4).ravel()[0])}")
+    print(f"ciera_f4_ri={fmt_vec(lx.cri.spd_to_ciera(f4, out='Rfi').ravel())}")
+    print(f"cierf_d65={fmt_scalar(lx.cri.spd_to_cierf(d65).ravel()[0])}")
+    print(f"cierf_d65_rfi={fmt_vec(lx.cri.spd_to_cierf(d65, out='Rfi').ravel())}")
+    print(f"cierg_d65={fmt_scalar(lx.cri.spd_to_cri(d65, cri_type='cierf', out='Rg').ravel()[0])}")
+    print(f"cierf_f4={fmt_scalar(lx.cri.spd_to_cierf(f4).ravel()[0])}")
+    print(f"cierf_f4_rfi={fmt_vec(lx.cri.spd_to_cierf(f4, out='Rfi').ravel())}")
+    print(f"cierg_f4={fmt_scalar(lx.cri.spd_to_cri(f4, cri_type='cierf', out='Rg').ravel()[0])}")
     print(
         "cri_ref_3000_6500="
         + fmt_vec(lx.cri_ref([3000.0, 6500.0], wl3=[360.0, 365.0, 1.0]).ravel())

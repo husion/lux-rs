@@ -68,7 +68,7 @@
   - `data/cmfs/`
   - `data/spds/`
 - 当前测试状态：
-  - Rust 单测：111
+  - Rust 单测：130
   - Python parity 集成测试：1
   - `cargo test` 全通过
 
@@ -397,9 +397,10 @@ P0 验收完成标志：
 - [x] 实现 CAM16 首批前向/反向主路径
 - [x] 实现 CAM02-UCS / CAM16-UCS 首批前向/反向主路径
 - [x] 实现部分 `xyz_to_jab*` wrapper
-- [ ] 实现 CIE Ra
-- [ ] 实现 CIE Rf
-- [ ] 实现 IES TM-30 的核心数值
+- [x] 实现 CIE Ra
+- [x] 实现 CIE Rf / Rg
+- [x] 实现 IES TM-30 风格别名入口
+- [x] 实现首批 TM-30 结果对象
 - [ ] 实现 `photbiochem` 基础能力
   - [ ] alpha-opic irradiance
   - [ ] EDI
@@ -414,7 +415,11 @@ P0 验收完成标志：
 - 当前已开始接入首批正式前向模型，提供 `cam_forward()`、`cam16_forward()`、`ciecam02_forward()` 以及 `CamAppearance`，可输出 `J/Q/C/M/s/h` 与 `aM/bM`、`aC/bC`。
 - 当前已补上 `J+aM+bM -> XYZ` 反向路径，以及 `CAM02-UCS / CAM16-UCS` 的 `J'a'b' <-> XYZ` 主路径。
 - 当前已补上 `Tristimulus/TristimulusSet` 风格 CAM / CAM-UCS wrapper。
-- 当前尚未实现的是更完整的属性输入组合反解、专门的批量结果容器，以及更高层 `xyz_to_jab*` 风格便捷 API 家族。
+- 当前已补上更高层 `xyz_to_jab*` / `jab*_to_xyz` 便捷 API，以及统一 `CamCoordinates / CamSpace` 坐标入口。
+- 当前已补上 `CIE Ra`、`CIE Rf / Rg` 主路径，样品数据已迁入仓库自有 `data/rfls/`，不再依赖本地 `luxpy` 安装路径。
+- 当前已补上 `IES TM-30` 风格别名入口，直接复用 `CIE 224` 的 `Rf / Rg` 数值主路径。
+- 当前已补上首批 `TM-30` 结果对象，包括 `Rf/Rg/Rfi`、`DEi`、8 个 hue bin 的平均 `Jab` 点，以及 bin-level 的 local fidelity、chroma shift、hue shift。
+- 当前尚未实现的是更完整的属性输入组合反解，以及 `photbiochem` 基础能力。
 
 ### Phase P4: 高级扩展与工具箱
 
@@ -530,7 +535,7 @@ P0 验收完成标志：
 - 光谱静态数据已经开始沉淀到仓库自有 `data/` 目录，后续新增标准光源应沿用同一组织方式
 - `deltaE` 首批主路径已完成
 - `CAT` 的一步主路径、`Bradford/CAT02/CAT16/Sharp/Bianco/CMC/Kries/Judd` 族、`D` / 观察条件入口、模式层、`CatContext`、`CatAdapter` 与 `cat_compile*` 已完成
-- 下一阶段优先补更完整的 CAM inverse 输入组合与更高层 `xyz_to_jab*` 便捷 API
+- 下一阶段优先进入 `photbiochem` 基础能力
 - 固定标准光源后续扩展仍应沿用统一 illuminant registry，而不是分散新增 `f1()`、`led_b1()` 一类 API
 
 ## 9. 暂不做的事项

@@ -1,4 +1,13 @@
 use crate::color::TristimulusObserver;
+use crate::cri::{
+    spd_to_ciera, spd_to_ciera_result, spd_to_ciera_special, spd_to_cierf, spd_to_cierf_result,
+    spd_to_cierf_special, spd_to_cierg, spd_to_ies_tm30_result, spd_to_iesrf, spd_to_iesrf_result,
+    spd_to_iesrf_special, spd_to_iesrg, spd_to_tm30_result, spds_to_ciera, spds_to_ciera_result,
+    spds_to_ciera_special, spds_to_cierf, spds_to_cierf_result, spds_to_cierf_special,
+    spds_to_cierg, spds_to_ies_tm30_result, spds_to_iesrf, spds_to_iesrf_result,
+    spds_to_iesrf_special, spds_to_iesrg, spds_to_tm30_result, CieRaResult, CieRfResult,
+    Tm30Result,
+};
 use crate::error::{LuxError, LuxResult};
 use crate::photometry::{spd_to_power, PowerType};
 
@@ -211,6 +220,58 @@ impl Spectrum {
     ) -> LuxResult<f64> {
         spd_to_power(self, power_type, observer)
     }
+
+    pub fn spd_to_ciera(&self) -> LuxResult<f64> {
+        spd_to_ciera(self)
+    }
+
+    pub fn spd_to_ciera_special(&self) -> LuxResult<Vec<f64>> {
+        spd_to_ciera_special(self)
+    }
+
+    pub fn spd_to_ciera_result(&self) -> LuxResult<CieRaResult> {
+        spd_to_ciera_result(self)
+    }
+
+    pub fn spd_to_cierf(&self) -> LuxResult<f64> {
+        spd_to_cierf(self)
+    }
+
+    pub fn spd_to_iesrf(&self) -> LuxResult<f64> {
+        spd_to_iesrf(self)
+    }
+
+    pub fn spd_to_cierg(&self) -> LuxResult<f64> {
+        spd_to_cierg(self)
+    }
+
+    pub fn spd_to_iesrg(&self) -> LuxResult<f64> {
+        spd_to_iesrg(self)
+    }
+
+    pub fn spd_to_cierf_special(&self) -> LuxResult<Vec<f64>> {
+        spd_to_cierf_special(self)
+    }
+
+    pub fn spd_to_iesrf_special(&self) -> LuxResult<Vec<f64>> {
+        spd_to_iesrf_special(self)
+    }
+
+    pub fn spd_to_cierf_result(&self) -> LuxResult<CieRfResult> {
+        spd_to_cierf_result(self)
+    }
+
+    pub fn spd_to_iesrf_result(&self) -> LuxResult<CieRfResult> {
+        spd_to_iesrf_result(self)
+    }
+
+    pub fn spd_to_tm30_result(&self) -> LuxResult<Tm30Result> {
+        spd_to_tm30_result(self)
+    }
+
+    pub fn spd_to_ies_tm30_result(&self) -> LuxResult<Tm30Result> {
+        spd_to_ies_tm30_result(self)
+    }
 }
 
 impl SpectralMatrix {
@@ -328,6 +389,58 @@ impl SpectralMatrix {
                 spectrum.spd_to_ler(observer)
             })
             .collect()
+    }
+
+    pub fn spd_to_ciera(&self) -> LuxResult<Vec<f64>> {
+        spds_to_ciera(self)
+    }
+
+    pub fn spd_to_ciera_special(&self) -> LuxResult<Vec<Vec<f64>>> {
+        spds_to_ciera_special(self)
+    }
+
+    pub fn spd_to_ciera_result(&self) -> LuxResult<Vec<CieRaResult>> {
+        spds_to_ciera_result(self)
+    }
+
+    pub fn spd_to_cierf(&self) -> LuxResult<Vec<f64>> {
+        spds_to_cierf(self)
+    }
+
+    pub fn spd_to_iesrf(&self) -> LuxResult<Vec<f64>> {
+        spds_to_iesrf(self)
+    }
+
+    pub fn spd_to_cierg(&self) -> LuxResult<Vec<f64>> {
+        spds_to_cierg(self)
+    }
+
+    pub fn spd_to_iesrg(&self) -> LuxResult<Vec<f64>> {
+        spds_to_iesrg(self)
+    }
+
+    pub fn spd_to_cierf_special(&self) -> LuxResult<Vec<Vec<f64>>> {
+        spds_to_cierf_special(self)
+    }
+
+    pub fn spd_to_iesrf_special(&self) -> LuxResult<Vec<Vec<f64>>> {
+        spds_to_iesrf_special(self)
+    }
+
+    pub fn spd_to_cierf_result(&self) -> LuxResult<Vec<CieRfResult>> {
+        spds_to_cierf_result(self)
+    }
+
+    pub fn spd_to_iesrf_result(&self) -> LuxResult<Vec<CieRfResult>> {
+        spds_to_iesrf_result(self)
+    }
+
+    pub fn spd_to_tm30_result(&self) -> LuxResult<Vec<Tm30Result>> {
+        spds_to_tm30_result(self)
+    }
+
+    pub fn spd_to_ies_tm30_result(&self) -> LuxResult<Vec<Tm30Result>> {
+        spds_to_ies_tm30_result(self)
     }
 }
 
