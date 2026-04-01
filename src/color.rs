@@ -1854,7 +1854,7 @@ pub fn vlbar_cie_mesopic(
 
 fn load_scotopic_vlbar_on(target_wavelengths: &[f64]) -> LuxResult<Spectrum> {
     let base = TristimulusObserver::from_csv(
-        include_str!("../luxpy/luxpy/data/cmfs/ciexyz_1951_20_scotopic.dat"),
+        include_str!("../data/cmfs/ciexyz_1951_20_scotopic.dat"),
         1699.0,
     )?
     .vl_spectrum()?;
