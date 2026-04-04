@@ -130,10 +130,9 @@ pub fn spd_to_ciera_result(spectrum: &Spectrum) -> LuxResult<CieRaResult> {
 }
 
 pub fn spds_to_ciera(spectra: &SpectralMatrix) -> LuxResult<Vec<f64>> {
-    Ok(project_batch_results(
-        spds_to_ciera_result(spectra)?,
-        |result| result.ra,
-    ))
+    Ok(project_batch_results(spds_to_ciera_result(spectra)?, |result| {
+        result.ra
+    }))
 }
 
 pub fn spds_to_ciera_result(spectra: &SpectralMatrix) -> LuxResult<Vec<CieRaResult>> {
@@ -141,10 +140,9 @@ pub fn spds_to_ciera_result(spectra: &SpectralMatrix) -> LuxResult<Vec<CieRaResu
 }
 
 pub fn spds_to_ciera_special(spectra: &SpectralMatrix) -> LuxResult<Vec<Vec<f64>>> {
-    Ok(project_batch_results(
-        spds_to_ciera_result(spectra)?,
-        |result| result.ri,
-    ))
+    Ok(project_batch_results(spds_to_ciera_result(spectra)?, |result| {
+        result.ri
+    }))
 }
 
 pub fn spd_to_cierf(spectrum: &Spectrum) -> LuxResult<f64> {
@@ -262,10 +260,10 @@ pub fn spd_to_ies_tm30_result(spectrum: &Spectrum) -> LuxResult<Tm30Result> {
 }
 
 pub fn spds_to_cierf(spectra: &SpectralMatrix) -> LuxResult<Vec<f64>> {
-    Ok(project_batch_results(
-        spds_to_cierf_result(spectra)?,
-        |result| result.rf,
-    ))
+    Ok(spds_to_cierf_result(spectra)?
+        .into_iter()
+        .map(|result| result.rf)
+        .collect())
 }
 
 pub fn spds_to_cierf_result(spectra: &SpectralMatrix) -> LuxResult<Vec<CieRfResult>> {
@@ -289,10 +287,9 @@ pub fn spds_to_ies_tm30_result(spectra: &SpectralMatrix) -> LuxResult<Vec<Tm30Re
 }
 
 pub fn spds_to_cierg(spectra: &SpectralMatrix) -> LuxResult<Vec<f64>> {
-    Ok(project_batch_results(
-        spds_to_cierf_result(spectra)?,
-        |result| result.rg,
-    ))
+    Ok(project_batch_results(spds_to_cierf_result(spectra)?, |result| {
+        result.rg
+    }))
 }
 
 pub fn spds_to_iesrg(spectra: &SpectralMatrix) -> LuxResult<Vec<f64>> {
@@ -300,10 +297,9 @@ pub fn spds_to_iesrg(spectra: &SpectralMatrix) -> LuxResult<Vec<f64>> {
 }
 
 pub fn spds_to_cierf_special(spectra: &SpectralMatrix) -> LuxResult<Vec<Vec<f64>>> {
-    Ok(project_batch_results(
-        spds_to_cierf_result(spectra)?,
-        |result| result.rfi,
-    ))
+    Ok(project_batch_results(spds_to_cierf_result(spectra)?, |result| {
+        result.rfi
+    }))
 }
 
 pub fn spds_to_iesrf_special(spectra: &SpectralMatrix) -> LuxResult<Vec<Vec<f64>>> {
@@ -653,12 +649,13 @@ fn clamp01(value: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::{
-        spd_to_ciera, spd_to_ciera_result, spd_to_ciera_special, spd_to_cierf, spd_to_cierf_result,
-        spd_to_cierf_special, spd_to_cierg, spd_to_ies_tm30_result, spd_to_iesrf,
-        spd_to_iesrf_result, spd_to_iesrf_special, spd_to_iesrg, spd_to_tm30_result, spds_to_ciera,
-        spds_to_ciera_result, spds_to_ciera_special, spds_to_cierf, spds_to_cierf_result,
-        spds_to_cierf_special, spds_to_cierg, spds_to_ies_tm30_result, spds_to_iesrf,
-        spds_to_iesrf_result, spds_to_iesrf_special, spds_to_iesrg, spds_to_tm30_result,
+        spd_to_ciera, spd_to_ciera_result, spd_to_ciera_special, spd_to_cierf,
+        spd_to_cierf_result, spd_to_cierf_special, spd_to_cierg, spd_to_ies_tm30_result,
+        spd_to_iesrf, spd_to_iesrf_result, spd_to_iesrf_special, spd_to_iesrg,
+        spd_to_tm30_result, spds_to_ciera, spds_to_ciera_result, spds_to_ciera_special,
+        spds_to_cierf, spds_to_cierf_result, spds_to_cierf_special, spds_to_cierg,
+        spds_to_ies_tm30_result, spds_to_iesrf, spds_to_iesrf_result, spds_to_iesrf_special,
+        spds_to_iesrg, spds_to_tm30_result,
     };
     use crate::illuminants::standard_illuminant;
     use crate::spectrum::{SpectralMatrix, Spectrum};
