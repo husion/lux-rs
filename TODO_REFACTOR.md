@@ -128,6 +128,7 @@
   - 收敛单谱 / 批量谱接口
   - 收敛 wrapper 和核心实现的边界
   - 清理错误类型和历史命名耦合
+  - 单项 / 批量 API 形状约定已记录到 `README.md` 的 `API Shape Conventions`
 
 ## 2. luxpy 顶层探索结论
 
