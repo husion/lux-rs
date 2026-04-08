@@ -2,3 +2,5 @@ luxpy/
 target/
 
 __pycache__/
+
+.omx/
