@@ -2028,7 +2028,7 @@ mod tests {
         cat_compile_mode_with_conditions, cat_compile_with_conditions, cat_degree_of_adaptation,
         cat_mode_degrees_from_conditions, delta_e_cie76, delta_e_cie76_lab, delta_e_ciede2000,
         delta_e_ciede2000_lab, lab_to_xyz, CatAdapter, CatContext, CatMode, CatSurround,
-        CatTransform, CatViewingConditions, Tristimulus, TristimulusSet,
+        CatTransform, CatViewingConditions, Tristimulus, TristimulusSample,
     };
 
     #[test]
@@ -2557,11 +2557,11 @@ mod tests {
             1.0,
         )
         .unwrap();
-        let adapted = Tristimulus::new([19.01, 20.0, 21.78])
+        let adapted = Tristimulus::new(vec![[19.01, 20.0, 21.78]])
             .cat_apply_adapter(adapter)
             .unwrap()
-            .values();
-        assert_eq!(adapted, adapter.apply([19.01, 20.0, 21.78]).unwrap());
+            .into_vec();
+        assert_eq!(adapted[0], adapter.apply([19.01, 20.0, 21.78]).unwrap());
     }
 
     #[test]
@@ -2635,7 +2635,7 @@ mod tests {
             source_conditions,
             target_conditions,
         );
-        let many = TristimulusSet::new(xyz.to_vec())
+        let many = Tristimulus::new(xyz.to_vec())
             .cat_apply(
                 [95.047, 100.0, 108.883],
                 [109.85, 100.0, 35.585],
@@ -2665,19 +2665,19 @@ mod tests {
                 .unwrap()
             ]
         );
-        let context_many = TristimulusSet::new(xyz.to_vec())
+        let context_many = Tristimulus::new(xyz.to_vec())
             .cat_apply_context(context)
             .unwrap()
             .into_vec();
         assert_eq!(context_many[0], cat_apply_context(xyz[0], context).unwrap());
         let adapter = CatAdapter::from_context(context).unwrap();
-        let adapter_many = TristimulusSet::new(xyz.to_vec())
+        let adapter_many = Tristimulus::new(xyz.to_vec())
             .cat_apply_adapter(adapter)
             .unwrap()
             .into_vec();
         assert_eq!(adapter_many[0], adapter.apply(xyz[0]).unwrap());
         assert_eq!(adapter_many[1], adapter.apply(xyz[1]).unwrap());
-        let conditioned = TristimulusSet::new(xyz.to_vec())
+        let conditioned = Tristimulus::new(xyz.to_vec())
             .cat_apply_with_conditions(
                 [95.047, 100.0, 108.883],
                 [109.85, 100.0, 35.585],
@@ -2699,7 +2699,7 @@ mod tests {
             )
             .unwrap()
         );
-        let mode_many = TristimulusSet::new(xyz.to_vec())
+        let mode_many = Tristimulus::new(xyz.to_vec())
             .cat_apply_mode(
                 [95.047, 100.0, 108.883],
                 [109.85, 100.0, 35.585],
@@ -2723,7 +2723,7 @@ mod tests {
             )
             .unwrap()
         );
-        let mode_conditioned = TristimulusSet::new(xyz.to_vec())
+        let mode_conditioned = Tristimulus::new(xyz.to_vec())
             .cat_apply_mode_with_conditions(
                 [95.047, 100.0, 108.883],
                 [109.85, 100.0, 35.585],
