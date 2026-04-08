@@ -955,7 +955,7 @@ impl From<TristimulusValue> for Tristimulus {
 
 impl FromIterator<TristimulusValue> for Tristimulus {
     fn from_iter<T: IntoIterator<Item = TristimulusValue>>(iter: T) -> Self {
-        Self::new(iter.into_iter().map(Tristimulus::values).collect())
+        Self::new(iter.into_iter().map(TristimulusValue::values).collect())
     }
 }
 
