@@ -7,7 +7,7 @@ use lux_rs::{
     cam16_viewing_conditions, ciecam02_viewing_conditions, delta_e, delta_e_cie76,
     delta_e_ciede2000, get_cie_mesopic_adaptation, lab_to_xyz, lms_to_xyz, luv_to_xyz, srgb_to_xyz,
     vlbar_cie_mesopic, xyz_to_lab, xyz_to_lms, xyz_to_luv, xyz_to_srgb, xyz_to_yuv, xyz_to_yxy,
-    yuv_to_xyz, yxy_to_xyz, CamUcsType, DeltaEFormula, Observer, Tristimulus, TristimulusSet,
+    yuv_to_xyz, yxy_to_xyz, CamUcsType, DeltaEFormula, Observer, Tristimulus,
 };
 
 #[test]
@@ -270,7 +270,7 @@ fn computes_delta_e_from_xyz() {
 fn batch_chromaticity_transforms_match_scalar_versions() {
     let xyz = [XYZ_SAMPLE, XYZ_SAMPLE_ALT];
     assert_eq!(
-        TristimulusSet::new(xyz.to_vec()).xyz_to_yxy().into_vec(),
+        Tristimulus::new(xyz.to_vec()).xyz_to_yxy().into_vec(),
         vec![xyz_to_yxy(xyz[0]), xyz_to_yxy(xyz[1])]
     );
     let yxy = [
@@ -278,11 +278,11 @@ fn batch_chromaticity_transforms_match_scalar_versions() {
         [0.3, 0.222_222_222_222_222_2, 0.333_333_333_333_333_3],
     ];
     assert_eq!(
-        TristimulusSet::new(yxy.to_vec()).yxy_to_xyz().into_vec(),
+        Tristimulus::new(yxy.to_vec()).yxy_to_xyz().into_vec(),
         vec![yxy_to_xyz(yxy[0]), yxy_to_xyz(yxy[1])]
     );
     assert_eq!(
-        TristimulusSet::new(xyz.to_vec()).xyz_to_yuv().into_vec(),
+        Tristimulus::new(xyz.to_vec()).xyz_to_yuv().into_vec(),
         vec![xyz_to_yuv(xyz[0]), xyz_to_yuv(xyz[1])]
     );
     let yuv = [
@@ -290,7 +290,7 @@ fn batch_chromaticity_transforms_match_scalar_versions() {
         [0.3, 0.129_032_258_064_516_13, 0.435_483_870_967_741_94],
     ];
     assert_eq!(
-        TristimulusSet::new(yuv.to_vec()).yuv_to_xyz().into_vec(),
+        Tristimulus::new(yuv.to_vec()).yuv_to_xyz().into_vec(),
         vec![yuv_to_xyz(yuv[0]), yuv_to_xyz(yuv[1])]
     );
 }
@@ -298,14 +298,14 @@ fn batch_chromaticity_transforms_match_scalar_versions() {
 #[test]
 fn batch_color_space_transforms_match_scalar_versions() {
     let xyz = [XYZ_SAMPLE, XYZ_SAMPLE_ALT];
-    let xyz_set = TristimulusSet::new(xyz.to_vec());
+    let xyz_set = Tristimulus::new(xyz.to_vec());
     let lab = xyz_set.xyz_to_lab(WHITE_E).into_vec();
     assert_eq!(
         lab,
         vec![xyz_to_lab(xyz[0], WHITE_E), xyz_to_lab(xyz[1], WHITE_E)]
     );
     assert_eq!(
-        TristimulusSet::new(lab.clone())
+        Tristimulus::new(lab.clone())
             .lab_to_xyz(WHITE_E)
             .into_vec(),
         vec![lab_to_xyz(lab[0], WHITE_E), lab_to_xyz(lab[1], WHITE_E)]
@@ -316,7 +316,7 @@ fn batch_color_space_transforms_match_scalar_versions() {
         vec![xyz_to_luv(xyz[0], WHITE_E), xyz_to_luv(xyz[1], WHITE_E)]
     );
     assert_eq!(
-        TristimulusSet::new(luv.clone())
+        Tristimulus::new(luv.clone())
             .luv_to_xyz(WHITE_E)
             .into_vec(),
         vec![luv_to_xyz(luv[0], WHITE_E), luv_to_xyz(luv[1], WHITE_E)]
@@ -326,7 +326,7 @@ fn batch_color_space_transforms_match_scalar_versions() {
 #[test]
 fn batch_lms_and_srgb_transforms_match_scalar_versions() {
     let xyz = [XYZ_SAMPLE, XYZ_BRIGHT];
-    let lms_many = TristimulusSet::new(vec![xyz[0], xyz[0]])
+    let lms_many = Tristimulus::new(vec![xyz[0], xyz[0]])
         .xyz_to_lms(Observer::Cie1931_2)
         .unwrap()
         .into_vec();
@@ -336,7 +336,7 @@ fn batch_lms_and_srgb_transforms_match_scalar_versions() {
     );
     let lms_input = [lms_many[0], lms_many[1]];
     assert_eq!(
-        TristimulusSet::new(lms_input.to_vec())
+        Tristimulus::new(lms_input.to_vec())
             .lms_to_xyz(Observer::Cie1931_2)
             .unwrap()
             .into_vec(),
@@ -346,14 +346,14 @@ fn batch_lms_and_srgb_transforms_match_scalar_versions() {
         ]
     );
     assert_eq!(
-        TristimulusSet::new(vec![xyz[1], xyz[1]])
+        Tristimulus::new(vec![xyz[1], xyz[1]])
             .xyz_to_srgb(2.4, -0.055, true)
             .into_vec(),
         vec![xyz_to_srgb(xyz[1], 2.4, -0.055, true); 2]
     );
     let rgb = [[64.0, 128.0, 192.0], [32.0, 64.0, 96.0]];
     assert_eq!(
-        TristimulusSet::new(rgb.to_vec())
+        Tristimulus::new(rgb.to_vec())
             .srgb_to_xyz(2.4, -0.055, true)
             .into_vec(),
         vec![
@@ -365,15 +365,15 @@ fn batch_lms_and_srgb_transforms_match_scalar_versions() {
 
 #[test]
 fn tristimulus_wrapper_matches_scalar_transforms() {
-    let xyz = Tristimulus::new(XYZ_SAMPLE);
-    assert_eq!(xyz.xyz_to_yxy().values(), xyz_to_yxy(XYZ_SAMPLE));
+    let xyz = Tristimulus::new(vec![XYZ_SAMPLE]);
+    assert_eq!(xyz.xyz_to_yxy().values(), &[xyz_to_yxy(XYZ_SAMPLE)]);
     assert_eq!(
         xyz.xyz_to_lab(WHITE_E).values(),
-        xyz_to_lab(XYZ_SAMPLE, WHITE_E)
+        &[xyz_to_lab(XYZ_SAMPLE, WHITE_E)]
     );
     assert_eq!(
         xyz.xyz_to_lms(Observer::Cie1931_2).unwrap().values(),
-        xyz_to_lms(XYZ_SAMPLE, Observer::Cie1931_2).unwrap()
+        &[xyz_to_lms(XYZ_SAMPLE, Observer::Cie1931_2).unwrap()]
     );
     let cam16_conditions = cam16_viewing_conditions(
         [95.047, 100.0, 108.883],
@@ -387,24 +387,28 @@ fn tristimulus_wrapper_matches_scalar_transforms() {
     .unwrap();
     let cam16 = xyz.cam16_forward(cam16_conditions).unwrap();
     let cam16_scalar = lux_rs::cam16_forward(XYZ_SAMPLE, cam16_conditions).unwrap();
-    assert_eq!(cam16, cam16_scalar);
+    assert_eq!(cam16[0], cam16_scalar);
     let cam16_ucs = xyz
         .cam16_ucs_forward(cam16_conditions, CamUcsType::Ucs)
         .unwrap();
     let cam16_ucs_scalar =
         lux_rs::cam16_ucs_forward(XYZ_SAMPLE, cam16_conditions, CamUcsType::Ucs).unwrap();
-    assert_eq!(cam16_ucs, cam16_ucs_scalar);
-    let cam16_back = Tristimulus::new([cam16_ucs.j_prime, cam16_ucs.a_prime, cam16_ucs.b_prime])
-        .cam16_ucs_inverse(cam16_conditions, CamUcsType::Ucs)
-        .unwrap();
-    assert!((cam16_back.values()[0] - 0.25).abs() < 1e-10);
-    assert!((cam16_back.values()[1] - 0.5).abs() < 1e-10);
-    assert!((cam16_back.values()[2] - 0.25).abs() < 1e-10);
+    assert_eq!(cam16_ucs[0], cam16_ucs_scalar);
+    let cam16_back = Tristimulus::new(vec![[
+        cam16_ucs[0].j_prime,
+        cam16_ucs[0].a_prime,
+        cam16_ucs[0].b_prime,
+    ]])
+    .cam16_ucs_inverse(cam16_conditions, CamUcsType::Ucs)
+    .unwrap();
+    assert!((cam16_back.values()[0][0] - 0.25).abs() < 1e-10);
+    assert!((cam16_back.values()[0][1] - 0.5).abs() < 1e-10);
+    assert!((cam16_back.values()[0][2] - 0.25).abs() < 1e-10);
 }
 
 #[test]
 fn tristimulus_set_wrapper_matches_batch_transforms() {
-    let xyz = TristimulusSet::new(vec![XYZ_SAMPLE, XYZ_SAMPLE_ALT]);
+    let xyz = Tristimulus::new(vec![XYZ_SAMPLE, XYZ_SAMPLE_ALT]);
     assert_eq!(
         xyz.xyz_to_yxy().values(),
         vec![xyz_to_yxy([0.25, 0.5, 0.25]), xyz_to_yxy([0.2, 0.3, 0.4])]
@@ -453,7 +457,7 @@ fn tristimulus_set_wrapper_matches_batch_transforms() {
         })
         .collect::<Vec<_>>();
     assert_eq!(cam_ucs_many, cam_ucs_scalar);
-    let ucs_triplets = TristimulusSet::new(
+    let ucs_triplets = Tristimulus::new(
         cam_ucs_many
             .iter()
             .map(|value| [value.j_prime, value.a_prime, value.b_prime])
@@ -505,11 +509,11 @@ fn one_row_batch_delta_e_preserves_numeric_baseline() {
 
 #[test]
 fn tristimulus_set_delta_e_matches_pairwise_scalar_computation() {
-    let left = TristimulusSet::new(vec![
+    let left = Tristimulus::new(vec![
         lab_to_xyz([50.0, 2.5, -80.0], WHITE_D65),
         lab_to_xyz([50.0, 2.6772, -79.7751], WHITE_D65),
     ]);
-    let right = TristimulusSet::new(vec![
+    let right = Tristimulus::new(vec![
         lab_to_xyz([50.0, 0.0, -82.5], WHITE_D65),
         lab_to_xyz([50.0, 0.0, -82.7485], WHITE_D65),
     ]);
