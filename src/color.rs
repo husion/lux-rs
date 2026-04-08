@@ -214,13 +214,15 @@ impl Observer {
             },
             Self::Cie2015_2 => ObserverSpec {
                 name: "2015_2",
-                data: include_str!("../data/cmfs/ciexyz_2015_2.dat"),
+                // CIE 2015 here reuses the same tabulated CMFs as the CIE 2006 set.
+                data: include_str!("../data/cmfs/ciexyz_2006_2.dat"),
                 k: 683.358,
                 xyz_to_lms: XYZ_TO_LMS_CIE2006_2,
             },
             Self::Cie2015_10 => ObserverSpec {
                 name: "2015_10",
-                data: include_str!("../data/cmfs/ciexyz_2015_10.dat"),
+                // CIE 2015 here reuses the same tabulated CMFs as the CIE 2006 set.
+                data: include_str!("../data/cmfs/ciexyz_2006_10.dat"),
                 k: 683.144,
                 xyz_to_lms: XYZ_TO_LMS_CIE2006_10,
             },
