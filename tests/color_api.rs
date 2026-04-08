@@ -468,6 +468,42 @@ fn tristimulus_set_wrapper_matches_batch_transforms() {
 }
 
 #[test]
+fn one_row_batch_color_transforms_preserve_numeric_baselines() {
+    let xyz = TristimulusSet::new(vec![XYZ_SAMPLE]);
+
+    let yxy = xyz.xyz_to_yxy().into_vec();
+    assert_eq!(yxy.len(), 1);
+    assert!((yxy[0][0] - 0.5).abs() < 1e-12);
+    assert!((yxy[0][1] - 0.25).abs() < 1e-12);
+    assert!((yxy[0][2] - 0.5).abs() < 1e-12);
+
+    let lab = xyz.xyz_to_lab(WHITE_E).into_vec();
+    assert_eq!(lab.len(), 1);
+    assert!((lab[0][0] - 100.0).abs() < 1e-12);
+    assert!((lab[0][1] + 103.149_737_007_950_17).abs() < 1e-9);
+    assert!((lab[0][2] - 41.259_894_803_180_07).abs() < 1e-9);
+
+    let lms = xyz.xyz_to_lms(Observer::Cie1931_2).unwrap().into_vec();
+    assert_eq!(lms.len(), 1);
+    assert!((lms[0][0] - 0.422_247_5).abs() < 1e-12);
+    assert!((lms[0][1] - 0.545_850_000_000_000_1).abs() < 1e-12);
+    assert!((lms[0][2] - 0.25).abs() < 1e-12);
+}
+
+#[test]
+fn one_row_batch_delta_e_preserves_numeric_baseline() {
+    let left = TristimulusSet::new(vec![lab_to_xyz([50.0, 2.6772, -79.7751], WHITE_D65)]);
+    let right = TristimulusSet::new(vec![lab_to_xyz([50.0, 0.0, -82.7485], WHITE_D65)]);
+
+    let result = left
+        .delta_e(&right, WHITE_D65, DeltaEFormula::Ciede2000)
+        .unwrap();
+
+    assert_eq!(result.len(), 1);
+    assert!((result[0] - 2.042_459_680_156_574).abs() < 1e-12);
+}
+
+#[test]
 fn tristimulus_set_delta_e_matches_pairwise_scalar_computation() {
     let left = TristimulusSet::new(vec![
         lab_to_xyz([50.0, 2.5, -80.0], WHITE_D65),

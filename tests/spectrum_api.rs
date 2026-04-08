@@ -110,6 +110,20 @@ fn normalizes_spectrum_to_photometric_power() {
 }
 
 #[test]
+fn one_row_matrix_normalization_preserves_numeric_baselines() {
+    let observer = observer_1931();
+    let matrix = SpectralMatrix::new(vec![555.0, 556.0], vec![vec![1.0, 1.0]]).unwrap();
+
+    let normalized = matrix
+        .normalize_each(&[SpectrumNormalization::Photometric(1000.0)], Some(&observer))
+        .unwrap();
+
+    assert_eq!(normalized.spectrum_count(), 1);
+    assert!((normalized.spectra()[0][0] - 0.732_114_734_022_806_9).abs() < 1e-12);
+    assert!((normalized.spectra()[0][1] - 0.732_114_734_022_806_9).abs() < 1e-12);
+}
+
+#[test]
 fn normalizes_each_spectrum_in_matrix() {
     let matrix = SpectralMatrix::new(
         vec![400.0, 410.0, 420.0],

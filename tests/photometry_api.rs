@@ -1,7 +1,7 @@
 mod common;
 
 use common::{matrix_555_556, observer_1931, spectrum_555_556};
-use lux_rs::{spd_to_ler, spd_to_power, spd_to_xyz, PowerType, Spectrum};
+use lux_rs::{spd_to_ler, spd_to_power, spd_to_xyz, PowerType, SpectralMatrix, Spectrum};
 
 #[test]
 fn computes_radiometric_power() {
@@ -41,6 +41,22 @@ fn computes_relative_xyz() {
     assert!((xyz[0] - 52.021_027_306_606_52).abs() < 1e-9);
     assert!((xyz[1] - 100.0).abs() < 1e-12);
     assert!((xyz[2] - 0.552_719_552_355_926_3).abs() < 1e-9);
+}
+
+#[test]
+fn one_row_batch_photometry_preserves_numeric_baselines() {
+    let observer = observer_1931();
+    let spectra = SpectralMatrix::new(vec![555.0, 556.0], vec![vec![1.0, 1.0]]).unwrap();
+
+    let xyz = spectra.spd_to_xyz(&observer, true).unwrap();
+    assert_eq!(xyz.len(), 1);
+    assert!((xyz[0][0] - 52.021_027_306_606_52).abs() < 1e-9);
+    assert!((xyz[0][1] - 100.0).abs() < 1e-12);
+    assert!((xyz[0][2] - 0.552_719_552_355_926_3).abs() < 1e-9);
+
+    let ler = spectra.spd_to_ler(&observer).unwrap();
+    assert_eq!(ler.len(), 1);
+    assert!((ler[0] - 682.953_062_906_7).abs() < 1e-9);
 }
 
 #[test]
