@@ -30,7 +30,7 @@ pub use color::{
     srgb_to_xyz, vlbar_cie_mesopic, xyz_to_lab, xyz_to_lms, xyz_to_lms_with_matrix, xyz_to_luv,
     xyz_to_srgb, xyz_to_yuv, xyz_to_yxy, yuv_to_xyz, yxy_to_xyz, CatAdapter, CatContext, CatMode,
     CatSurround, CatTransform, CatViewingConditions, DeltaEFormula, Matrix3,
-    MesopicLuminousEfficiency, Observer, Tristimulus, TristimulusObserver, TristimulusSet,
+    MesopicLuminousEfficiency, Observer, Tristimulus , TristimulusObserver,
 };
 pub use cri::{
     spd_to_ciera, spd_to_ciera_result, spd_to_ciera_special, spd_to_cierf, spd_to_cierf_result,
