@@ -123,7 +123,7 @@ fn build_context(
         .zip(spacing.iter())
         .map(|(value, dl)| value * dl)
         .collect();
-    let target_weighted_sum = dot(&target.values()[..], &calibration_weights);
+    let target_weighted_sum = dot(target.values(), &calibration_weights);
     if target_weighted_sum == 0.0 {
         return Err(LuxError::InvalidInput(
             "target responsivity under calibration illuminant must be non-zero",

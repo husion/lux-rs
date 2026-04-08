@@ -18,7 +18,7 @@ pub use cam::{
     xyz_to_jab_cam16ucs, xyz_to_jabc_ciecam02, xyz_to_jabc_ciecam16, xyz_to_jabm_ciecam02,
     xyz_to_jabm_ciecam16, CamAppearance, CamCoordinates, CamModel, CamNakaRushtonParameters,
     CamSpace, CamSurround, CamSurroundParameters, CamUcsAppearance, CamUcsParameters, CamUcsType,
-    CamViewingConditions,
+    CamViewingConditions, CamViewingOptions,
 };
 #[allow(deprecated)]
 pub use color::{
@@ -28,8 +28,8 @@ pub use color::{
     cat_mode_degrees_from_conditions, delta_e, delta_e_cie76, delta_e_ciede2000,
     get_cie_mesopic_adaptation, lab_to_xyz, lms_to_xyz, lms_to_xyz_with_matrix, luv_to_xyz,
     srgb_to_xyz, vlbar_cie_mesopic, xyz_to_lab, xyz_to_lms, xyz_to_lms_with_matrix, xyz_to_luv,
-    xyz_to_srgb, xyz_to_yuv, xyz_to_yxy, yuv_to_xyz, yxy_to_xyz, CatAdapter, CatContext, CatMode,
-    CatSurround, CatTransform, CatViewingConditions, DeltaEFormula, Matrix3,
+    xyz_to_srgb, xyz_to_yuv, xyz_to_yxy, yuv_to_xyz, yxy_to_xyz, CatAdapter, CatConditionPair,
+    CatContext, CatMode, CatSurround, CatTransform, CatViewingConditions, DeltaEFormula, Matrix3,
     MesopicLuminousEfficiency, Observer, Tristimulus, TristimulusObserver,
 };
 pub use cri::{

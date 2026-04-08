@@ -94,7 +94,9 @@ pub fn individual_observer_lms_to_xyz(
 
     let matrix = individual_observer_lms_to_xyz_matrix(field_size);
     let wavelengths = lms.wavelengths().to_vec();
-    let mut xyz = vec![Vec::with_capacity(wavelengths.len()); 3];
+    let mut xyz = (0..3)
+        .map(|_| Vec::with_capacity(wavelengths.len()))
+        .collect::<Vec<_>>();
 
     for index in 0..wavelengths.len() {
         let lms_sample = [

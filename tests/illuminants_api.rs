@@ -98,7 +98,7 @@ fn converts_cct_to_xyz() {
 #[test]
 fn converts_xyz_to_cct() {
     let (cct, duv) = xyz_to_cct([100.0, 100.0, 100.0], Observer::Cie1931_2).unwrap();
-    assert!((cct - 5455.485_887_350_497).abs() < 1.0);
+    assert!((cct - 5_455.485_887_350_497).abs() < 1.0);
     assert!((duv - (-0.004_423_324_748_595_847)).abs() < 1e-4);
 }
 

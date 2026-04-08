@@ -92,6 +92,12 @@ pub struct CatContext {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CatConditionPair {
+    pub source: CatViewingConditions,
+    pub target: CatViewingConditions,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CatAdapter {
     matrix: Matrix3,
 }
@@ -143,7 +149,7 @@ const XYZ_TO_LMS_CIE2006_2: Matrix3 = [
 ];
 const XYZ_TO_LMS_CIE2006_10: Matrix3 = [
     [
-        0.434_511_873_864_139_43,
+        0.434_511_873_864_139_4,
         0.239_073_351_151_345_67,
         -0.087_584_241_936_804_45,
     ],
@@ -274,12 +280,7 @@ fn canonicalize_observer_name(name: &str) -> Option<&'static str> {
 
     let normalized = trimmed
         .to_ascii_lowercase()
-        .replace(' ', "")
-        .replace('\t', "")
-        .replace('\n', "")
-        .replace('\r', "")
-        .replace('-', "")
-        .replace('_', "");
+        .replace([' ', '\t', '\n', '\r', '-', '_'], "");
     let normalized = normalized.strip_prefix("cie").unwrap_or(&normalized);
 
     match normalized {
@@ -511,8 +512,7 @@ impl Tristimulus {
         baseline_white: Option<[f64; 3]>,
         transform: CatTransform,
         mode: CatMode,
-        source_conditions: CatViewingConditions,
-        target_conditions: CatViewingConditions,
+        conditions: CatConditionPair,
     ) -> LuxResult<Self> {
         self.cat_apply_adapter(CatAdapter::from_conditions(
             source_white,
@@ -520,8 +520,8 @@ impl Tristimulus {
             baseline_white,
             transform,
             mode,
-            source_conditions,
-            target_conditions,
+            conditions.source,
+            conditions.target,
         )?)
     }
 
@@ -830,6 +830,12 @@ impl CatContext {
 
     pub fn degrees_of_adaptation(self) -> LuxResult<[f64; 2]> {
         cat_mode_degrees_from_conditions(self.mode, self.source_conditions, self.target_conditions)
+    }
+}
+
+impl CatConditionPair {
+    pub const fn new(source: CatViewingConditions, target: CatViewingConditions) -> Self {
+        Self { source, target }
     }
 }
 
@@ -1376,8 +1382,7 @@ pub fn cat_apply_mode_with_conditions(
     baseline_white: Option<[f64; 3]>,
     transform: CatTransform,
     mode: CatMode,
-    source_conditions: CatViewingConditions,
-    target_conditions: CatViewingConditions,
+    conditions: CatConditionPair,
 ) -> LuxResult<[f64; 3]> {
     cat_compile_mode_with_conditions(
         source_white,
@@ -1385,8 +1390,8 @@ pub fn cat_apply_mode_with_conditions(
         baseline_white,
         transform,
         mode,
-        source_conditions,
-        target_conditions,
+        conditions.source,
+        conditions.target,
     )
     .and_then(|adapter| adapter.apply(xyz))
 }
@@ -1777,9 +1782,8 @@ fn load_scotopic_vlbar_on(target_wavelengths: &[f64]) -> LuxResult<Spectrum> {
         .map(|(&wavelength, &value)| {
             if wavelength < source_wavelengths[0]
                 || wavelength > source_wavelengths[source_wavelengths.len() - 1]
+                || value.is_sign_negative()
             {
-                0.0
-            } else if value.is_sign_negative() {
                 0.0
             } else {
                 value
@@ -1797,8 +1801,8 @@ mod tests {
         cat_apply_with_conditions, cat_compile, cat_compile_context, cat_compile_mode,
         cat_compile_mode_with_conditions, cat_compile_with_conditions, cat_degree_of_adaptation,
         cat_mode_degrees_from_conditions, delta_e_cie76, delta_e_cie76_lab, delta_e_ciede2000,
-        delta_e_ciede2000_lab, lab_to_xyz, CatAdapter, CatContext, CatMode, CatSurround,
-        CatTransform, CatViewingConditions, Tristimulus,
+        delta_e_ciede2000_lab, lab_to_xyz, CatAdapter, CatConditionPair, CatContext, CatMode,
+        CatSurround, CatTransform, CatViewingConditions, Tristimulus,
     };
 
     #[test]
@@ -2046,8 +2050,7 @@ mod tests {
             Some([100.0, 100.0, 100.0]),
             CatTransform::Bradford,
             CatMode::TwoStep,
-            source,
-            target,
+            CatConditionPair::new(source, target),
         )
         .unwrap();
         let manual = cat_apply_mode(
@@ -2077,8 +2080,7 @@ mod tests {
             Some([100.0, 100.0, 100.0]),
             CatTransform::Bradford,
             CatMode::BaselineToTarget,
-            source,
-            target,
+            CatConditionPair::new(source, target),
         )
         .unwrap();
         let manual = cat_apply_mode(
@@ -2133,8 +2135,7 @@ mod tests {
             context.baseline_white,
             context.transform,
             context.mode,
-            context.source_conditions,
-            context.target_conditions,
+            CatConditionPair::new(context.source_conditions, context.target_conditions),
         )
         .unwrap();
         assert_eq!(adapted, manual);
@@ -2294,8 +2295,7 @@ mod tests {
             Some([100.0, 100.0, 100.0]),
             CatTransform::Bradford,
             CatMode::TwoStep,
-            source,
-            target,
+            CatConditionPair::new(source, target),
         )
         .unwrap();
         assert_eq!(adapted, helper);
@@ -2500,8 +2500,7 @@ mod tests {
                 Some([100.0, 100.0, 100.0]),
                 CatTransform::Bradford,
                 CatMode::TwoStep,
-                source_conditions,
-                target_conditions,
+                CatConditionPair::new(source_conditions, target_conditions),
             )
             .unwrap()
             .into_vec();
@@ -2514,8 +2513,7 @@ mod tests {
                 Some([100.0, 100.0, 100.0]),
                 CatTransform::Bradford,
                 CatMode::TwoStep,
-                source_conditions,
-                target_conditions
+                CatConditionPair::new(source_conditions, target_conditions)
             )
             .unwrap()
         );

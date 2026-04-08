@@ -190,12 +190,7 @@ fn canonicalize_illuminant_name(name: &str) -> Option<&'static str> {
 
     let normalized = trimmed
         .to_ascii_uppercase()
-        .replace(' ', "")
-        .replace('\t', "")
-        .replace('\n', "")
-        .replace('\r', "")
-        .replace('-', "")
-        .replace('_', "");
+        .replace([' ', '\t', '\n', '\r', '-', '_'], "");
     let normalized = normalized.strip_prefix("CIE").unwrap_or(&normalized);
 
     if normalized == "A" {

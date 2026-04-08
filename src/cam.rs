@@ -56,6 +56,13 @@ pub struct CamViewingConditions {
     pub brightness_white: f64,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct CamViewingOptions {
+    pub luminance_factor_white: Option<f64>,
+    pub degree_of_adaptation: Option<f64>,
+    pub cat_transform: Option<CatTransform>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CamAppearance {
     pub lightness: f64,
@@ -177,12 +184,10 @@ impl CamViewingConditions {
     pub fn new(
         model: CamModel,
         white_point: [f64; 3],
-        luminance_factor_white: Option<f64>,
         adapting_luminance: f64,
         background_luminance: f64,
         surround: CamSurround,
-        degree_of_adaptation: Option<f64>,
-        cat_transform: Option<CatTransform>,
+        options: CamViewingOptions,
     ) -> LuxResult<Self> {
         validate_xyz_triplet(white_point, "white point values must be finite")?;
         validate_positive_finite(
@@ -194,18 +199,20 @@ impl CamViewingConditions {
             "background_luminance must be finite and positive",
         )?;
 
-        let yw = luminance_factor_white.unwrap_or(white_point[1]);
+        let yw = options.luminance_factor_white.unwrap_or(white_point[1]);
         validate_positive_finite(yw, "luminance_factor_white must be finite and positive")?;
 
         let surround_parameters = surround.parameters();
-        let d = degree_of_adaptation.unwrap_or_else(|| {
+        let d = options.degree_of_adaptation.unwrap_or_else(|| {
             let raw = surround_parameters.f
                 * (1.0 - (1.0 / 3.6) * ((-adapting_luminance - 42.0) / 92.0).exp());
             clamp(raw, 0.0, 1.0)
         });
         validate_degree(d, "degree_of_adaptation must be finite and within 0..=1")?;
 
-        let cat_transform = cat_transform.unwrap_or(model.default_cat_transform());
+        let cat_transform = options
+            .cat_transform
+            .unwrap_or(model.default_cat_transform());
         let naka_rushton_parameters = model.default_naka_rushton_parameters();
         let normalized_white = normalize_white_point(white_point, yw)?;
         let rgb_white = multiply_matrix3_vector3(cat_transform.matrix(), normalized_white);
@@ -316,12 +323,14 @@ pub fn cam16_viewing_conditions(
     CamViewingConditions::new(
         CamModel::Cam16,
         white_point,
-        luminance_factor_white,
         adapting_luminance,
         background_luminance,
         surround,
-        degree_of_adaptation,
-        cat_transform,
+        CamViewingOptions {
+            luminance_factor_white,
+            degree_of_adaptation,
+            cat_transform,
+        },
     )
 }
 
@@ -337,12 +346,14 @@ pub fn ciecam02_viewing_conditions(
     CamViewingConditions::new(
         CamModel::Ciecam02,
         white_point,
-        luminance_factor_white,
         adapting_luminance,
         background_luminance,
         surround,
-        degree_of_adaptation,
-        cat_transform,
+        CamViewingOptions {
+            luminance_factor_white,
+            degree_of_adaptation,
+            cat_transform,
+        },
     )
 }
 
@@ -1076,7 +1087,7 @@ mod tests {
         jabm_ciecam02_to_xyz, jabm_ciecam16_to_xyz, xyz_to_jab_cam02ucs, xyz_to_jab_cam16ucs,
         xyz_to_jabc_ciecam02, xyz_to_jabc_ciecam16, xyz_to_jabm_ciecam02, xyz_to_jabm_ciecam16,
         CamCoordinates, CamModel, CamNakaRushtonParameters, CamSpace, CamSurround,
-        CamUcsAppearance, CamUcsType, CamViewingConditions,
+        CamUcsAppearance, CamUcsType, CamViewingConditions, CamViewingOptions,
     };
     use crate::color::CatTransform;
 
@@ -1124,12 +1135,13 @@ mod tests {
         let vc = CamViewingConditions::new(
             CamModel::Cam16,
             [95.047, 100.0, 108.883],
-            None,
             100.0,
             20.0,
             CamSurround::Average,
-            Some(1.0),
-            None,
+            CamViewingOptions {
+                degree_of_adaptation: Some(1.0),
+                ..Default::default()
+            },
         )
         .unwrap();
         assert!((vc.achromatic_response_white - 39.500_996_860_311_794).abs() < 1e-9);

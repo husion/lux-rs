@@ -101,8 +101,10 @@ fn clamps_lms_to_xyz_matrix_to_supported_field_sizes() {
 
 #[test]
 fn rejects_non_zero_peak_shift_in_current_slice() {
-    let mut parameters = IndividualObserverParameters::default();
-    parameters.cone_peak_shift = [1.0, 0.0, 0.0];
+    let parameters = IndividualObserverParameters {
+        cone_peak_shift: [1.0, 0.0, 0.0],
+        ..Default::default()
+    };
     let error = individual_observer_cmf(parameters).unwrap_err();
     assert_eq!(
         error.to_string(),
