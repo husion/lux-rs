@@ -120,7 +120,7 @@ impl SingleSpectrum {
         for &target in target_wavelengths {
             values.push(self.interpolate_one_linear(target));
         }
-        Spectrum::new(target_wavelengths.to_vec(), values)
+        SingleSpectrum::new(target_wavelengths.to_vec(), values)
     }
 
     pub fn cie_interp_linear(
@@ -215,7 +215,7 @@ impl SingleSpectrum {
             }
         };
 
-        Spectrum::new(
+        SingleSpectrum::new(
             self.wavelengths.clone(),
             self.values.iter().map(|value| value * scale).collect(),
         )
@@ -347,6 +347,13 @@ impl Spectrum {
         &self.wavelengths
     }
 
+    pub fn values(&self) -> &[f64] {
+        self.spectra
+            .first()
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+    }
+
     pub fn spectra(&self) -> &[Vec<f64>] {
         &self.spectra
     }
@@ -363,6 +370,20 @@ impl Spectrum {
         getwld(&self.wavelengths)
     }
 
+    pub fn into_vec(self) -> Vec<Vec<f64>> {
+        self.spectra
+    }
+
+    pub fn interpolate_linear(&self, target_wavelengths: &[f64]) -> LuxResult<Self> {
+        let mut spectra = Vec::with_capacity(self.spectra.len());
+        for values in &self.spectra {
+            let spectrum = SingleSpectrum::new(self.wavelengths.clone(), values.clone())?;
+            let interpolated = spectrum.interpolate_linear(target_wavelengths)?;
+            spectra.push(interpolated.values().to_vec());
+        }
+        Spectrum::new(target_wavelengths.to_vec(), spectra)
+    }
+
     pub fn cie_interp_linear(
         &self,
         target_wavelengths: &[f64],
@@ -370,12 +391,20 @@ impl Spectrum {
     ) -> LuxResult<Self> {
         let mut spectra = Vec::with_capacity(self.spectra.len());
         for values in &self.spectra {
-            let spectrum = Spectrum::new(self.wavelengths.clone(), values.clone())?;
+            let spectrum = SingleSpectrum::new(self.wavelengths.clone(), values.clone())?;
             let interpolated =
                 spectrum.cie_interp_linear(target_wavelengths, negative_values_allowed)?;
             spectra.push(interpolated.values().to_vec());
         }
         Spectrum::new(target_wavelengths.to_vec(), spectra)
+    }
+
+    pub fn normalize(
+        &self,
+        mode: SpectrumNormalization,
+        observer: Option<&TristimulusObserver>,
+    ) -> LuxResult<Self> {
+        self.normalize_each(&[mode], observer)
     }
 
     pub fn normalize_each(
@@ -390,7 +419,7 @@ impl Spectrum {
         let mut spectra = Vec::with_capacity(self.spectra.len());
         for (index, values) in self.spectra.iter().enumerate() {
             let mode = modes.get(index).copied().unwrap_or(modes[0]);
-            let spectrum = Spectrum::new(self.wavelengths.clone(), values.clone())?;
+            let spectrum = SingleSpectrum::new(self.wavelengths.clone(), values.clone())?;
             let normalized = spectrum.normalize(mode, observer)?;
             spectra.push(normalized.values().to_vec());
         }
@@ -411,7 +440,7 @@ impl Spectrum {
         self.spectra
             .iter()
             .map(|values| {
-                let spectrum = Spectrum::new(wavelengths.to_vec(), values.clone())?;
+                let spectrum = SingleSpectrum::new(wavelengths.to_vec(), values.clone())?;
                 crate::photometry::integrate_xyz(
                     &spectrum,
                     x_bar.values(),
@@ -428,7 +457,7 @@ impl Spectrum {
         self.spectra
             .iter()
             .map(|values| {
-                let spectrum = Spectrum::new(self.wavelengths.to_vec(), values.clone())?;
+                let spectrum = SingleSpectrum::new(self.wavelengths.to_vec(), values.clone())?;
                 spectrum.spd_to_ler(observer)
             })
             .collect()
