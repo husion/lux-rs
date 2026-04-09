@@ -19,17 +19,17 @@ Pure Rust lighting and color science library for spectral, photometric, and colo
 
 `lux-rs` provides a native Rust API for core lighting and color science calculations without requiring Python at runtime.
 
-The crate currently includes:
+Current modules and responsibilities:
 
-- `P0` base spectral kernel: completed
-- `P1` reference-source and CCT path: completed
-- `P1.5` first standard-illuminant registry: completed
-- `P2` status: color transforms, `deltaE`, and CAT utilities completed
-- `P3` status: first CAM / CAM-UCS forward and inverse paths completed
-- `P3` status: first CRI path completed for `CIE Ra`, `CIE Rf / Rg`, and `TM-30` result objects
-- `P4` status: first detector spectral mismatch utilities completed for `f1′` and correction factors
-- `P4` status: first `indvcmf` slice completed for deterministic Asano-style individual observer CMFs without peak-shift support
-- next priority: move into photobiological metrics
+- `spectrum`: wavelength grids, spacing helpers, interpolation, and spectrum normalization for single and batch SPD workflows.
+- `illuminants`: standard illuminant registry, blackbody/daylight/reference source generation, and CCT-XYZ conversion helpers.
+- `photometry`: SPD integration to tristimulus values plus radiometric/photometric/quantal power and luminous efficacy.
+- `color`: observer access, XYZ/Lab/Luv/Yuv/Yxy/sRGB/LMS transforms, color-difference metrics, and chromatic adaptation utilities.
+- `cam`: `CIECAM02`, `CAM16`, and CAM-UCS forward/inverse appearance-model pipelines with viewing-condition helpers.
+- `cri`: color rendering metrics including `CIE Ra`, `CIE Rf / Rg`, and structured `TM-30` results for single and batch spectra.
+- `spectral_mismatch`: detector spectral mismatch metrics (`f1-prime`) and correction-factor computation utilities.
+- `indvcmf`: deterministic individual-observer CMF construction (Asano-style slice), including LMS-to-XYZ conversion support.
+- `error`: shared `LuxError` / `LuxResult` types used across modules.
 
 ## What's New in 0.1.1
 
