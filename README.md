@@ -2,6 +2,19 @@
 
 Pure Rust lighting and color science library for spectral, photometric, and colorimetric workflows.
 
+[![crates.io](https://img.shields.io/crates/v/lux-rs.svg)](https://crates.io/crates/lux-rs)
+[![docs.rs](https://docs.rs/lux-rs/badge.svg)](https://docs.rs/lux-rs)
+[![license](https://img.shields.io/crates/l/lux-rs.svg)](https://github.com/husion/lux-rs/blob/main/LICENSE)
+
+## Quick Links
+
+- [Overview](#overview)
+- [Install](#install)
+- [Quick Example](#quick-example)
+- [What's New in 0.1.1](#whats-new-in-011)
+- [API Shape Conventions](#api-shape-conventions)
+- [Roadmap](#roadmap)
+
 ## Overview
 
 `lux-rs` provides a native Rust API for core lighting and color science calculations without requiring Python at runtime.
@@ -17,6 +30,13 @@ The crate currently includes:
 - `P4` status: first detector spectral mismatch utilities completed for `f1′` and correction factors
 - `P4` status: first `indvcmf` slice completed for deterministic Asano-style individual observer CMFs without peak-shift support
 - next priority: move into photobiological metrics
+
+## What's New in 0.1.1
+
+- Added individual observer CMF support via the new `indvcmf` module (`individual_observer_cmf`, LMS-to-XYZ helpers, and defaults).
+- Added detector spectral mismatch utilities via the new `spectral_mismatch` module (`f1′` and correction factor helpers).
+- Expanded regression and parity coverage with new API-level tests for color, illuminants, photometry, spectral mismatch, spectra, and individual observer paths.
+- Tightened API consistency and warning-free quality across modules (public API alignment and clippy cleanup).
 
 ## Design Goals
 
