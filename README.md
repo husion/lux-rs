@@ -4,6 +4,7 @@ Pure Rust lighting and color science library for spectral, photometric, and colo
 
 [![crates.io](https://img.shields.io/crates/v/lux-rs.svg)](https://crates.io/crates/lux-rs)
 [![docs.rs](https://docs.rs/lux-rs/badge.svg)](https://docs.rs/lux-rs)
+[![Rust](https://github.com/husion/lux-rs/actions/workflows/rust.yml/badge.svg)](https://github.com/husion/lux-rs/actions/workflows/rust.yml)
 [![license](https://img.shields.io/crates/l/lux-rs.svg)](https://github.com/husion/lux-rs/blob/main/LICENSE)
 
 ## Quick Links
