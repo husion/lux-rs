@@ -123,11 +123,10 @@ Phase 1 convergence keeps the current numerical behavior, but makes the intended
 
 Near-term work, following [`TODO_REFACTOR.md`](./TODO_REFACTOR.md):
 
-1. finish illuminant naming cleanup and alias normalization
-2. start `photobiochem` base metrics
-3. return to broader observer coverage and remaining result-layer polish
+1. Stabilize core APIs, clean up unused/legacy code patterns, and refine docs.
+2. Polish the existing individual CMF and spectral mismatch APIs.
 
-Longer-term items such as broader CAM families, TM-30 graphics, photobiological metrics, individual observers, and hyperspectral tooling remain intentionally deferred until the current core stays stable.
+All other items (such as `photbiochem` base metrics, broader CAM/CRI graphics, hyperspectral tooling, etc.) are deferred to Phase P5 (low priority) until the current core stabilizes.
 
 ## Relationship To LuxPy
 

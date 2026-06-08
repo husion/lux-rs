@@ -105,8 +105,8 @@
 - `P1`：已完成
 - `P1.5`：已完成
 - `P2`：已完成
-- `P3`：主链已完成第一版，可继续做结果层和 API 层重构
-- `P4`：尚未开始
+- `P3`：主链已完成第一版，核心 CAM 和 CRI 重构已落地，光生物 (photbiochem) 降级延期
+- `P4`：部分完成（生理观察者与探测器失配已提前实现，其余降级延期）
 
 ## 1.2 当前重构重点
 
@@ -312,10 +312,10 @@
 | 色差 | `deltaE` | Lab/UCS 等颜色空间 | 低 | 中 | 已完成首版 | 可继续补更多公式 |
 | 色貌模型 | CIECAM02、CAM16、CAM-UCS、ZCAM、CAM15u、CAM18sl | CAT、XYZ、观察条件 | 高 | 很高 | 已完成部分 | `CIECAM02` / `CAM16` / `CAM-UCS` 已落地，其他模型仍未做 |
 | 显色评价 | `cri`、TM-30、`Rf/Rg`、CIE Ra | 参考光源、XYZ、色空间、CAT、数据库 | 高 | 很高 | 已完成部分 | `CIE Ra`、`CIE Rf/Rg`、`TM-30` 已落地，后续是结果层与数据层完善 |
-| 光生物与节律 | `photbiochem`、alpha-opic、EDI、DER、ELR、BLH | SPD 积分、作用谱数据库 | 中 | 中 | P3 | 独立性较好，可后置并行 |
-| 个体观察者模型 | `indvcmf` | CMF、矩阵、模型参数 | 高 | 高 | P4 | 研究型扩展，后置 |
-| 高光谱图像 | `hypspcim` | 光谱底座、反射率库、颜色变换 | 高 | 很高 | P4 | 工程量大，后置 |
-| 外围工具链 | `dispcal`、`rgb2spec`、`spectro`、`iolidfiles` | 各自独立 | 高 | 很高 | P4 | 更适合后续独立 crate / 工具层 |
+| 光生物与节律 | `photbiochem`、alpha-opic、EDI、DER、ELR、BLH | SPD 积分、作用谱数据库 | 中 | 中 | P5 (延期) | 降级为低优先级延期事项 |
+| 个体观察者模型 | `indvcmf` | CMF、矩阵、模型参数 | 高 | 高 | 已完成首版 | 核心生理模型与 MC 生成已在 P4 提前落地 |
+| 高光谱图像 | `hypspcim` | 光谱底座、反射率库、颜色变换 | 高 | 很高 | P5 (延期) | 降级为低优先级延期事项 |
+| 外围工具链 | `dispcal`、`rgb2spec`、`spectro`、`iolidfiles` | 各自独立 | 高 | 很高 | P5 (延期) | 降级为低优先级延期事项 |
 
 ## 5. 分阶段执行计划
 
@@ -447,7 +447,7 @@ P0 验收完成标志：
   - [x] `CIEDE2000`
 - 当前 Rust API 以 `XYZ + 白点` 作为公开入口，内部再转换到 `Lab` 执行公式计算；后续如需贴近 `luxpy` 的更泛化 `DE_cspace` 族接口，再在此基础上扩展。
 
-### Phase P3: CAM + CRI + photobiochem
+### Phase P3: CAM + CRI (已完成)
 
 计划：
 
@@ -459,12 +459,6 @@ P0 验收完成标志：
 - [x] 实现 CIE Rf / Rg
 - [x] 实现 IES TM-30 风格别名入口
 - [x] 实现首批 TM-30 结果对象
-- [ ] 实现 `photbiochem` 基础能力
-  - [ ] alpha-opic irradiance
-  - [ ] EDI
-  - [ ] DER
-  - [ ] ELR
-  - [ ] blue light hazard
 
 说明：
 
@@ -477,23 +471,17 @@ P0 验收完成标志：
 - 当前已补上 `CIE Ra`、`CIE Rf / Rg` 主路径，样品数据已迁入仓库自有 `data/rfls/`，不再依赖本地 `luxpy` 安装路径。
 - 当前已补上 `IES TM-30` 风格别名入口，直接复用 `CIE 224` 的 `Rf / Rg` 数值主路径。
 - 当前已补上首批 `TM-30` 结果对象，包括 `Rf/Rg/Rfi`、`DEi`、8 个 hue bin 的平均 `Jab` 点，以及 bin-level 的 local fidelity、chroma shift、hue shift。
-- 当前尚未实现的是更完整的属性输入组合反解，以及 `photbiochem` 基础能力。
 
-### Phase P4: 高级扩展与工具箱
+### Phase P4: 生理观察者与探测器适配 (已完成首版)
 
 计划：
 
-- [x] `indvcmf`
-- [ ] `hypspcim`
-- [ ] `dispcal`
-- [ ] `rgb2spec`
-- [ ] `spectro`
-- [ ] `iolidfiles`
-- [ ] `spectral_mismatch_and_uncertainty`
+- [x] `indvcmf` 核心生理模型与 Monte Carlo 生成
+- [x] `spectral_mismatch` 探测器失配 $f_1'$ 与校正因子核心链路
 
 说明：
 
-- 当前已补上 `spectral_mismatch_and_uncertainty` 的首批 detector spectral mismatch 主路径：
+- 当前已补上 `spectral_mismatch` 的首批 detector spectral mismatch 主路径：
   - `f1′`
   - spectral mismatch correction factor
 - 当前已补上 `indvcmf` 的首批确定性单观察者主路径：
@@ -506,7 +494,24 @@ P0 验收完成标志：
   - CIE TC1-97 `lms->xyz` 拟合转换矩阵路径
   - Stockman 2023 专用 `LMS -> XYZ` 转换矩阵路径
   - 统一上层接口：`individual_observer_generate` / `individual_observer_generate_population`
-- 当前尚未实现的是更完整的 measurement uncertainty 工作流，以及 `hypspcim` / 外围工具链等其余 P4 子域。
+
+### Phase P5: 低优先级/已延期重构事项 (已降级)
+
+根据重构策略调整，以下非核心、外围及扩展功能已降级为低优先级，暂缓开发：
+
+- [ ] 实现 `photbiochem` 基础能力
+  - [ ] alpha-opic irradiance
+  - [ ] EDI
+  - [ ] DER
+  - [ ] ELR
+  - [ ] blue light hazard
+- [ ] 规范标准光源别名体系与完全收口 (`Phase P1.5` 遗留)
+- [ ] `hypspcim` (高光谱图像模拟)
+- [ ] `dispcal` (显示器校准)
+- [ ] `rgb2spec` (RGB转光谱)
+- [ ] `spectro` (光谱仪集成接口)
+- [ ] `iolidfiles` (配光 data 读写)
+- [ ] `spectral_mismatch_and_uncertainty` 剩余测量不确定度评估工作流
 
 ## 6. Python 对拍验收要求
 
@@ -600,7 +605,7 @@ P0 验收完成标志：
 7. [x] 进入 `blackbody/daylightphase/cri_ref`
 8. [x] 再进入 `xyz_to_cct/cct_to_xyz`
 9. [x] 然后进入固定标准光源数据集层首批 registry
-10. [ ] 再进入更高层的 `CAT` 工具层
+10. [x] 更高层的 `CAT` 工具层已基本打通
 
 当前建议：
 
@@ -610,7 +615,7 @@ P0 验收完成标志：
 - 光谱静态数据已经开始沉淀到仓库自有 `data/` 目录，后续新增标准光源应沿用同一组织方式
 - `deltaE` 首批主路径已完成
 - `CAT` 的一步主路径、`Bradford/CAT02/CAT16/Sharp/Bianco/CMC/Kries/Judd` 族、`D` / 观察条件入口、模式层、`CatContext`、`CatAdapter` 与 `cat_compile*` 已完成
-- 下一阶段优先进入 `photbiochem` 基础能力
+- 近期开发建议重点收拢，下一阶段优先进行核心 API 稳定与易用性打磨，光生物及其他外围工具箱已降级延后
 - 固定标准光源后续扩展仍应沿用统一 illuminant registry，而不是分散新增 `f1()`、`led_b1()` 一类 API
 
 ## 9. 暂不做的事项
