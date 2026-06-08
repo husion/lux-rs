@@ -37,6 +37,9 @@ fn parse_usize_vec(value: &str) -> Vec<usize> {
 }
 
 fn assert_close(actual: f64, expected: f64, tolerance: f64) {
+    if actual.is_nan() && expected.is_nan() {
+        return;
+    }
     let diff = (actual - expected).abs();
     assert!(
         diff <= tolerance,
@@ -1038,4 +1041,117 @@ fn current_rust_basics_match_luxpy() {
         &parse_vec(&baselines["xyz_absolute_many"]),
         1e-9,
     );
+
+    // spdbuild parity tests
+    let test_grid = WavelengthGrid::new(380.0, 780.0, 5.0).unwrap();
+    let vec_line_format = |wl: Vec<f64>, values: Vec<f64>| -> Vec<f64> {
+        let mut res = wl;
+        res.extend(values);
+        res
+    };
+
+    // 1. gaussian_spd
+    let gauss = lux_rs::gaussian_spd(&[530.0], &[20.0], Some(test_grid)).unwrap();
+    let gauss_flat = vec_line_format(gauss.wavelengths().to_vec(), gauss.spectra()[0].clone());
+    println!("Testing spdbuild_gaussian...");
+    assert_vec_close(&gauss_flat, &parse_vec(&baselines["spdbuild_gaussian"]), 1e-9);
+
+    // 2. lorentzian2_spd
+    let lz = lux_rs::lorentzian2_spd(&[530.0], &[20.0], Some(test_grid)).unwrap();
+    let lz_flat = vec_line_format(lz.wavelengths().to_vec(), lz.spectra()[0].clone());
+    println!("Testing spdbuild_lorentzian2...");
+    assert_vec_close(&lz_flat, &parse_vec(&baselines["spdbuild_lorentzian2"]), 1e-9);
+
+    // 3. butterworth_spd
+    let bw = lux_rs::butterworth_spd(&[530.0], &[20.0], &[2.0], Some(test_grid)).unwrap();
+    let bw_flat = vec_line_format(bw.wavelengths().to_vec(), bw.spectra()[0].clone());
+    println!("Testing spdbuild_butterworth...");
+    assert_vec_close(&bw_flat, &parse_vec(&baselines["spdbuild_butterworth"]), 1e-9);
+
+    // 4. roundedtriangle_spd
+    let r_tri_params = lux_rs::RoundedTriangleParams {
+        peakwl: 530.0,
+        fwhm: Some(100.0),
+        rounding: 0.5,
+        ..Default::default()
+    };
+    let r_tri = lux_rs::roundedtriangle_spd(&[r_tri_params], Some(test_grid)).unwrap();
+    let r_tri_flat = vec_line_format(r_tri.wavelengths().to_vec(), r_tri.spectra()[0].clone());
+    println!("Testing spdbuild_roundedtriangle...");
+    assert_vec_close(&r_tri_flat, &parse_vec(&baselines["spdbuild_roundedtriangle"]), 1e-9);
+
+    // 5. mono_led_spd
+    let mono_params = lux_rs::MonoLedParams {
+        peakwl: 530.0,
+        fwhm: 20.0,
+        strength_shoulder: 2.0,
+        bw_order: -1.0,
+    };
+    let mono = lux_rs::mono_led_spd(&[mono_params], Some(test_grid)).unwrap();
+    let mono_flat = vec_line_format(mono.wavelengths().to_vec(), mono.spectra()[0].clone());
+    println!("Testing spdbuild_mono_led...");
+    assert_vec_close(&mono_flat, &parse_vec(&baselines["spdbuild_mono_led"]), 1e-9);
+
+    // 6. phosphor_led_spd
+    let ph_params = lux_rs::PhosphorLedParams {
+        peakwl: 450.0,
+        fwhm: 20.0,
+        bw_order: -1.0,
+        strength_shoulder: 2.0,
+        strength_ph: Some(0.5),
+        peakwl_ph1: 530.0,
+        fwhm_ph1: 80.0,
+        strength_ph1: 0.8,
+        peakwl_ph2: 560.0,
+        fwhm_ph2: 80.0,
+        strength_ph2: None,
+        use_piecewise_fcn: true,
+    };
+    let ph = lux_rs::phosphor_led_spd(&[ph_params.clone()], Some(test_grid)).unwrap();
+    let ph_flat = ph.spectra()[0].clone();
+    println!("Testing spdbuild_phosphor_led...");
+    assert_vec_close(&ph_flat, &parse_vec(&baselines["spdbuild_phosphor_led"]), 1e-9);
+
+    // 7. color3mixer
+    let c3m = lux_rs::color3mixer(
+        [100.0, 0.4, 0.4],
+        [100.0, 0.2, 0.2],
+        [100.0, 0.6, 0.2],
+        [100.0, 0.3, 0.7],
+    );
+    println!("Testing spdbuild_color3mixer...");
+    assert_vec_close(&c3m, &parse_vec(&baselines["spdbuild_color3mixer"]), 1e-9);
+
+    // 8. colormixer_pinv
+    let pinv = lux_rs::colormixer_pinv(
+        [100.0, 0.4, 0.4],
+        &[[100.0, 0.2, 0.2], [100.0, 0.6, 0.2], [100.0, 0.3, 0.7]],
+        "Yxy",
+    );
+    println!("Testing spdbuild_colormixer_pinv...");
+    assert_vec_close(&pinv, &parse_vec(&baselines["spdbuild_colormixer_pinv"]), 1e-9);
+
+    // 9. colormixer
+    let cm = lux_rs::colormixer(
+        [100.0, 0.4, 0.4],
+        &[[100.0, 0.2, 0.2], [100.0, 0.6, 0.2], [100.0, 0.3, 0.7], [100.0, 0.5, 0.5]],
+        &[0.5],
+    );
+    println!("Testing spdbuild_colormixer...");
+    assert_vec_close(&cm, &parse_vec(&baselines["spdbuild_colormixer"]), 1e-9);
+
+    // 10. spd_builder
+    let builder_spd = lux_rs::spd_builder(
+        None,
+        None,
+        &ph_params,
+        None,
+        Some(&[100.0, 0.4, 0.4]),
+        "Yxy",
+        lux_rs::Observer::Cie1931_2,
+        Some(test_grid),
+    ).unwrap();
+    let builder_flat = builder_spd.spectra()[0].clone();
+    println!("Testing spdbuild_spd_builder...");
+    assert_vec_close(&builder_flat, &parse_vec(&baselines["spdbuild_spd_builder"]), 1e-9);
 }

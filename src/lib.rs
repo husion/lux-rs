@@ -7,6 +7,8 @@ pub mod indvcmf;
 pub mod photometry;
 pub mod spectral_mismatch;
 pub mod spectrum;
+pub mod spdbuild;
+
 
 #[allow(deprecated)]
 pub use cam::{
@@ -65,3 +67,10 @@ pub use spectral_mismatch::{
     spectral_mismatch_f1prime, spectral_mismatch_f1primes,
 };
 pub use spectrum::{getwld, getwlr, Spectrum, SpectrumNormalization, WavelengthGrid};
+pub use spdbuild::{
+    butterworth_spd, color3mixer, colormixer, colormixer_pinv, fit_gaussian_spd_params,
+    gaussian_spd, lorentzian2_spd, mono_led_spd, phosphor_led_spd,
+    phosphor_led_spd_with_components, roundedtriangle_spd, spd_builder, MonoLedParams,
+    PhosphorLedComponents, PhosphorLedParams, RoundedTriangleParams, DEFAULT_WL_GRID,
+};
+

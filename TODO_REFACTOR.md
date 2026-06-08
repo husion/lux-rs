@@ -344,11 +344,11 @@
 - [x] 将 `spd_to_power` 重构到统一积分框架
 - [x] 实现 `spd_to_ler`
 - [x] 实现 `spd_to_xyz`
-- [ ] 重构 `spdbuild` 光谱合成与混色计算 (用户提升为最高优先级，优先重构落地)
-  - [ ] 实现 `gaussian_spd` / `lorentzian2_spd` / `butterworth_spd` 等基础参数化合成光谱
-  - [ ] 实现 `mono_led_spd` / `phosphor_led_spd` 等 LED 光谱数学模型
-  - [ ] 实现 `colormixer` / `colormixer_pinv` 混色算法与解方程求解器
-  - [ ] 实现 `spd_optimizer` 基于目标色坐标/显色性的优化求解器
+- [x] 重构 `spdbuild` 光谱合成与混色计算 (用户提升为最高优先级，优先重构落地)
+  - [x] 实现 `gaussian_spd` / `lorentzian2_spd` / `butterworth_spd` 等基础参数化合成光谱
+  - [x] 实现 `mono_led_spd` / `phosphor_led_spd` 等 LED 光谱数学模型
+  - [x] 实现 `colormixer` / `colormixer_pinv` 混色算法与解方程求解器
+  - [x] 实现 `spd_builder` 优化求解器及 `fit_gaussian_spd_params` 参数拟合求解器
 
 当前说明：
 
@@ -372,7 +372,7 @@ P0 验收完成标志：
   - [x] `spd_to_power`
   - [x] `spd_to_ler`
   - [x] `spd_to_xyz`
-  - [ ] `spdbuild` (合成光谱与混色计算，包括参数化生成、colormixer 混色及 spd_optimizer 优化器)
+  - [x] `spdbuild` (合成光谱与混色计算，包括参数化生成、colormixer 混色及 spd_builder/fit_gaussian_spd_params 优化拟合求解器)
 
 ### Phase P1: 参考光源 + CCT
 
@@ -619,7 +619,7 @@ P0 验收完成标志：
 8. [x] 再进入 `xyz_to_cct/cct_to_xyz`
 9. [x] 然后进入固定标准光源数据集层首批 registry
 10. [x] 更高层的 `CAT` 工具层已基本打通
-11. [ ] **重构 spdbuild 光谱合成与混色计算工具箱 [最高优先级/立即开始]**
+11. [x] **重构 spdbuild 光谱合成与混色计算工具箱**
 
 当前建议：
 

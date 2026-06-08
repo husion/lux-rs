@@ -1178,7 +1178,7 @@ fn validate_adapting_luminance(adapting_luminance: f64) -> LuxResult<()> {
     }
 }
 
-fn invert_matrix3(matrix: Matrix3) -> Matrix3 {
+pub(crate) fn invert_matrix3(matrix: Matrix3) -> Matrix3 {
     let a = matrix[0][0];
     let b = matrix[0][1];
     let c = matrix[0][2];

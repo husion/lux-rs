@@ -123,7 +123,7 @@ Phase 1 convergence keeps the current numerical behavior, but makes the intended
 
 Near-term work, following [`TODO_REFACTOR.md`](./TODO_REFACTOR.md):
 
-1. **[CRITICAL]** Implement and refactor the `spdbuild` (spectral composition and color mixing) module as the highest priority.
+1. **[COMPLETED]** Implement and refactor the `spdbuild` (spectral composition and color mixing) module as the highest priority.
 2. Stabilize core APIs, clean up unused/legacy code patterns, and refine docs.
 3. Polish the existing individual CMF and spectral mismatch APIs.
 
