@@ -12,6 +12,7 @@ Pure Rust lighting and color science library for spectral, photometric, and colo
 - [Overview](#overview)
 - [Install](#install)
 - [Quick Example](#quick-example)
+- [What's New in 0.1.3](#whats-new-in-013)
 - [What's New in 0.1.1](#whats-new-in-011)
 - [API Shape Conventions](#api-shape-conventions)
 - [Roadmap](#roadmap)
@@ -31,6 +32,11 @@ Current modules and responsibilities:
 - `spectral_mismatch`: detector spectral mismatch metrics (`f1-prime`) and correction-factor computation utilities.
 - `indvcmf`: individual-observer CMF construction with multi-model support (`Asano`, `CieTc197`, `Stockman2023`, `AicomPlus`), unified single/population request APIs, and LMS-to-XYZ conversion helpers.
 - `error`: shared `LuxError` / `LuxResult` types used across modules.
+
+## What's New in 0.1.3
+
+- Added support for generating individual observer CMFs from measured parameters via `individual_observer_cmf_from_measured` and explicit Fourier series evaluation for lens and macular pigment density variations.
+- Exported fixed LMS-to-XYZ conversion matrices `LMS_TO_XYZ_2DEG_FIXED` and `LMS_TO_XYZ_10DEG_FIXED`.
 
 ## What's New in 0.1.1
 
