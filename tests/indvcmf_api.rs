@@ -442,3 +442,43 @@ fn aicom_plus_differs_from_asano_under_same_parameters() {
         .sum::<f64>();
     assert!(diff > 0.0);
 }
+
+#[test]
+fn test_individual_observer_cmf_from_measured() {
+    use lux_rs::{
+        individual_observer_cmf_from_measured, IndividualObserverMeasuredParameters,
+        LMS_TO_XYZ_2DEG_FIXED, LMS_TO_XYZ_10DEG_FIXED,
+    };
+
+    let params = IndividualObserverMeasuredParameters {
+        lshift: 0.0,
+        mshift: 0.0,
+        sshift: 0.0,
+        lod: 0.38,
+        mod_: 0.38,
+        sod: 0.2,
+        mac: 0.35,
+        lens: 1.7649,
+        field_size: 2.0,
+    };
+
+    let wavelengths = vec![400.0, 500.0, 600.0, 700.0];
+    let cmf = individual_observer_cmf_from_measured(&wavelengths, params, None).unwrap();
+
+    assert_eq!(cmf.lms.wavelengths(), &wavelengths);
+    assert_eq!(cmf.xyz.wavelengths(), &wavelengths);
+    assert_eq!(cmf.lms_to_xyz_matrix, LMS_TO_XYZ_2DEG_FIXED);
+
+    // Verify 10-degree field size uses LMS_TO_XYZ_10DEG_FIXED
+    let params_10 = IndividualObserverMeasuredParameters {
+        field_size: 10.0,
+        ..params
+    };
+    let cmf_10 = individual_observer_cmf_from_measured(&wavelengths, params_10, None).unwrap();
+    assert_eq!(cmf_10.lms_to_xyz_matrix, LMS_TO_XYZ_10DEG_FIXED);
+
+    // Verify error on empty wavelengths
+    let err = individual_observer_cmf_from_measured(&[], params, None);
+    assert!(err.is_err());
+}
+

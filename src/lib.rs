@@ -60,6 +60,8 @@ pub use indvcmf::{
     IndividualObserverModel, IndividualObserverMonteCarloOptions, IndividualObserverParameters,
     IndividualObserverPopulation, IndividualObserverPopulationRequest,
     IndividualObserverPopulationStrategy, IndividualObserverRequest, IndividualObserverStdDevs,
+    IndividualObserverMeasuredParameters, individual_observer_cmf_from_measured,
+    LMS_TO_XYZ_2DEG_FIXED, LMS_TO_XYZ_10DEG_FIXED,
 };
 pub use photometry::{spd_to_ler, spd_to_power, spd_to_xyz, PowerType};
 pub use spectral_mismatch::{

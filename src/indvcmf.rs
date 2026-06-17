@@ -1474,3 +1474,255 @@ impl LcgRng {
         r * theta.cos()
     }
 }
+
+// --- Measured individual observer support ---
+
+pub const LMS_TO_XYZ_2DEG_FIXED: Matrix3 = [
+    [ 1.94735469, -1.41445123,  0.36476327],
+    [ 0.68990272,  0.34832189,  0.00000000],
+    [ 0.00000000,  0.00000000,  1.93485343],
+];
+
+pub const LMS_TO_XYZ_10DEG_FIXED: Matrix3 = [
+    [ 1.93906444, -1.37420684,  0.39960583],
+    [ 0.69784280,  0.34538187,  0.00000000],
+    [ 0.00000000,  0.00000000,  2.03077344],
+];
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct IndividualObserverMeasuredParameters {
+    pub lshift: f64,
+    pub mshift: f64,
+    pub sshift: f64,
+    pub lod: f64,
+    pub mod_: f64,
+    pub sod: f64,
+    pub mac: f64,
+    pub lens: f64,
+    pub field_size: f64,
+}
+
+const LSER_COEFFS: [f64; 18] = [
+    -42.417608560, -2.656791612, 75.011093607, 56.477062776, 7.509397607, 9.061442173,
+    -38.068488495, -20.974610259, -6.642746250, -3.785039126, 9.322071459, 3.134494745,
+    1.603799055, 0.439302358, -0.676958684, -0.072988371, -0.078857510, -0.004264105
+];
+
+const MCONE_COEFFS: [f64; 18] = [
+    -210.6568853069, -0.1458073553, 386.7319763250, 305.4710584670, 5.0218382813, 6.8386224350,
+    -208.2062335724, -118.4890200521, -5.7625866330, -3.7973553168, 55.1803460639, 19.9728512548,
+    1.8990456325, 0.6913410864, -5.0891806213, -0.7070689492, -0.1419926703, 0.0005894876
+];
+
+const SCONE_COEFFS: [f64; 18] = [
+    207.3880950935, -6.3065623516, -393.7100478026, -315.6650602846, 19.2917535553, 19.6414743488,
+    214.2211570447, 121.8584683485, -15.1820737886, -8.6774057156, -56.7596380441, -20.6318720369,
+    3.6934875040, 1.0483022480, 5.3656615075, 0.7898783086, -0.1480357836, 0.0002358232
+];
+
+const MACULAR_COEFFS: [f64; 24] = [
+    3712.2037792986, 374.1811575175, -7007.6989637831, -5887.2857515364, -633.0475233043,
+    -716.0429039473, 4386.8811254914, 2882.1092658881, 638.1347550701, 468.4980700497,
+    -1653.7567388120, -817.1240899995, -286.4038978705, -144.7996457395, 340.3364828167,
+    115.5652804221, 59.1650826447, 18.6678197694, -30.2344535413, -5.4683753172, -4.1335064207,
+    -0.5043959566, 0.5094171266, 1.0050048550
+];
+
+const LENS_COEFFS: [f64; 20] = [
+    -313.9508632762, -70.3216819666, 585.4719725809, 471.5395862431, 117.3539102044,
+    127.0168222865, -324.4700544731, -188.1638078982, -104.5512488013, -68.3078486904,
+    89.7815373733, 33.4498264952, 35.2723638870, 13.6524086627, -8.7568168893, -1.2825766708,
+    -3.5126531075, -0.4477840959, 0.0428291365, 1.0091871745
+];
+
+fn evaluate_fourier_series(x: f64, c: &[f64]) -> f64 {
+    let mut sum = c[0];
+    for k in 1..=8 {
+        let k_f = k as f64;
+        sum += c[2 * k - 1] * (k_f * x).cos() + c[2 * k] * (k_f * x).sin();
+    }
+    sum + c[17]
+}
+
+fn evaluate_macular_fourier(x: f64, c: &[f64; 24]) -> f64 {
+    let mut sum = c[0];
+    for k in 1..=11 {
+        let k_f = k as f64;
+        sum += c[2 * k - 1] * (k_f * x).cos() + c[2 * k] * (k_f * x).sin();
+    }
+    sum * c[23]
+}
+
+fn evaluate_lens_fourier(x: f64, c: &[f64; 20]) -> f64 {
+    let mut sum = c[0];
+    for k in 1..=9 {
+        let k_f = k as f64;
+        sum += c[2 * k - 1] * (k_f * x).cos() + c[2 * k] * (k_f * x).sin();
+    }
+    sum * c[19]
+}
+
+fn lserconelog(nm: f64, lshift: f64) -> f64 {
+    let x = (nm.log10() - 2.5563025007672873) / 0.11876664675818423;
+    let xshift = (553.1 / (553.1 + lshift)).log10() / 0.11876664675818423;
+    evaluate_fourier_series(x + xshift, &LSER_COEFFS)
+}
+
+fn mconelog(nm: f64, mshift: f64) -> f64 {
+    let x = (nm.log10() - 2.5563025007672873) / 0.11876664675818423;
+    let xshift = (529.9 / (529.9 + mshift)).log10() / 0.11876664675818423;
+    evaluate_fourier_series(x + xshift, &MCONE_COEFFS)
+}
+
+fn sconelog(nm: f64, sshift: f64) -> f64 {
+    let x = (nm.log10() - 2.5563025007672873) / 0.11876664675818423;
+    let xshift = (416.9 / (416.9 + sshift)).log10() / 0.11876664675818423;
+    evaluate_fourier_series(x + xshift, &SCONE_COEFFS)
+}
+
+fn macular_density_template(nm: f64) -> f64 {
+    let x = (nm - 375.0) / 55.70423008;
+    if x >= 0.0 && x <= ((550.0 - 375.0) / 55.70423008) {
+        evaluate_macular_fourier(x, &MACULAR_COEFFS)
+    } else {
+        0.0
+    }
+}
+
+fn lens_density_template(nm: f64) -> f64 {
+    let x = (nm - 360.0) / 95.49296586;
+    if x >= 0.0 && x <= ((660.0 - 360.0) / 95.49296586) {
+        evaluate_lens_fourier(x, &LENS_COEFFS)
+    } else {
+        0.0
+    }
+}
+
+pub fn individual_observer_cmf_from_measured(
+    wavelengths: &[f64],
+    params: IndividualObserverMeasuredParameters,
+    custom_matrix: Option<Matrix3>,
+) -> LuxResult<IndividualObserverCmf> {
+    if wavelengths.is_empty() {
+        return Err(LuxError::EmptyInput);
+    }
+
+    let n = wavelengths.len();
+    let mut lms_quantal = vec![vec![0.0; n]; 3];
+    let mut lens_trans = Vec::with_capacity(n);
+    let mut macular_trans = Vec::with_capacity(n);
+
+    let mac_scale = params.mac / 0.35;
+    let lens_scale = params.lens / 1.7649;
+
+    for (i, &w) in wavelengths.iter().enumerate() {
+        let l_log_abs = lserconelog(w, params.lshift);
+        let m_log_abs = mconelog(w, params.mshift);
+        let s_log_abs = sconelog(w, params.sshift);
+
+        let l_abs = 10f64.powf(l_log_abs);
+        let m_abs = 10f64.powf(m_log_abs);
+        let s_abs = 10f64.powf(s_log_abs);
+
+        let l_retina = (1.0 - 10f64.powf(-params.lod * l_abs)) / (1.0 - 10f64.powf(-params.lod));
+        let m_retina = (1.0 - 10f64.powf(-params.mod_ * m_abs)) / (1.0 - 10f64.powf(-params.mod_));
+        let s_retina = (1.0 - 10f64.powf(-params.sod * s_abs)) / (1.0 - 10f64.powf(-params.sod));
+
+        let mac_temp = macular_density_template(w);
+        let lens_temp = lens_density_template(w);
+
+        let mac_d = mac_temp * mac_scale;
+        let lens_d = lens_temp * lens_scale;
+
+        let mac_transmission = 10f64.powf(-mac_d);
+        let lens_transmission = 10f64.powf(-lens_d);
+
+        lens_trans.push(lens_transmission);
+        macular_trans.push(mac_transmission);
+
+        let mac_lens_factor = mac_transmission * lens_transmission;
+        lms_quantal[0][i] = l_retina * mac_lens_factor;
+        lms_quantal[1][i] = m_retina * mac_lens_factor;
+        lms_quantal[2][i] = s_retina * mac_lens_factor;
+    }
+
+    for axis in 0..3 {
+        let max_val = lms_quantal[axis].iter().copied().fold(f64::NEG_INFINITY, f64::max);
+        if max_val > 0.0 {
+            for val in &mut lms_quantal[axis] {
+                *val /= max_val;
+            }
+        }
+    }
+
+    let mut lms_energy = vec![vec![0.0; n]; 3];
+    let mut photopigment = vec![vec![0.0; n]; 3];
+    for axis in 0..3 {
+        for i in 0..n {
+            lms_energy[axis][i] = lms_quantal[axis][i] * wavelengths[i];
+        }
+        let max_val = lms_energy[axis].iter().copied().fold(f64::NEG_INFINITY, f64::max);
+        if max_val > 0.0 {
+            for val in &mut lms_energy[axis] {
+                *val /= max_val;
+            }
+        }
+
+        for i in 0..n {
+            let w = wavelengths[i];
+            let abs_log = match axis {
+                0 => lserconelog(w, params.lshift),
+                1 => mconelog(w, params.mshift),
+                2 => sconelog(w, params.sshift),
+                _ => 0.0,
+            };
+            let abs_lin = 10f64.powf(abs_log);
+            let od = match axis {
+                0 => params.lod,
+                1 => params.mod_,
+                2 => params.sod,
+                _ => 0.0,
+            };
+            let retina = (1.0 - 10f64.powf(-od * abs_lin)) / (1.0 - 10f64.powf(-od));
+            photopigment[axis][i] = retina * w;
+        }
+    }
+
+    let lms_spectrum = Spectrum::new(wavelengths.to_vec(), lms_energy)?;
+
+    let matrix = custom_matrix.unwrap_or_else(|| {
+        if params.field_size <= 4.0 {
+            LMS_TO_XYZ_2DEG_FIXED
+        } else {
+            LMS_TO_XYZ_10DEG_FIXED
+        }
+    });
+
+    let mut xyz_values = vec![vec![0.0; n]; 3];
+    for i in 0..n {
+        let lms_val = [
+            lms_spectrum.spectra()[0][i],
+            lms_spectrum.spectra()[1][i],
+            lms_spectrum.spectra()[2][i],
+        ];
+        let xyz_val = multiply_matrix3_vector3(matrix, lms_val);
+        for axis in 0..3 {
+            xyz_values[axis][i] = xyz_val[axis];
+        }
+    }
+
+    let xyz_spectrum = Spectrum::new(wavelengths.to_vec(), xyz_values)?;
+    let lens_transmission = Spectrum::new(wavelengths.to_vec(), lens_trans)?;
+    let macular_transmission = Spectrum::new(wavelengths.to_vec(), macular_trans)?;
+    let photopigment_sensitivity = Spectrum::new(wavelengths.to_vec(), photopigment)?;
+
+    Ok(IndividualObserverCmf {
+        lms: lms_spectrum,
+        xyz: xyz_spectrum,
+        lens_transmission,
+        macular_transmission,
+        photopigment_sensitivity,
+        lms_to_xyz_matrix: matrix,
+    })
+}
+
