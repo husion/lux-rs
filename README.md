@@ -12,6 +12,7 @@ Pure Rust lighting and color science library for spectral, photometric, and colo
 - [Overview](#overview)
 - [Install](#install)
 - [Quick Example](#quick-example)
+- [What's New in 0.1.4](#whats-new-in-014)
 - [What's New in 0.1.3](#whats-new-in-013)
 - [What's New in 0.1.1](#whats-new-in-011)
 - [API Shape Conventions](#api-shape-conventions)
@@ -26,12 +27,19 @@ Current modules and responsibilities:
 - `spectrum`: wavelength grids, spacing helpers, interpolation, and spectrum normalization for single and batch SPD workflows.
 - `illuminants`: standard illuminant registry, blackbody/daylight/reference source generation, and CCT-XYZ conversion helpers.
 - `photometry`: SPD integration to tristimulus values plus radiometric/photometric/quantal power and luminous efficacy.
-- `color`: observer access, XYZ/Lab/Luv/Yuv/Yxy/sRGB/LMS transforms, color-difference metrics, and chromatic adaptation utilities.
+- `color`: observer access, XYZ/Lab/Luv/Yuv/Yxy/sRGB/LMS transforms, an `RgbColorSpace` abstraction (sRGB, display-p3, rec2100-pq/hlg) with `rgb_to_xyz` / `xyz_to_rgb`, color-difference metrics, and chromatic adaptation utilities.
 - `cam`: `CIECAM02`, `CAM16`, and CAM-UCS forward/inverse appearance-model pipelines with viewing-condition helpers.
 - `cri`: color rendering metrics including `CIE Ra`, `CIE Rf / Rg`, and structured `TM-30` results for single and batch spectra.
 - `spectral_mismatch`: detector spectral mismatch metrics (`f1-prime`) and correction-factor computation utilities.
 - `indvcmf`: individual-observer CMF construction with multi-model support (`Asano`, `CieTc197`, `Stockman2023`, `AicomPlus`), unified single/population request APIs, and LMS-to-XYZ conversion helpers.
 - `error`: shared `LuxError` / `LuxResult` types used across modules.
+
+## What's New in 0.1.4
+
+- Added an `RgbColorSpace` abstraction that combines a primaries-derived RGB↔XYZ matrix with an EOTF (`TransferFunction`), exposed through generic `rgb_to_xyz` / `xyz_to_rgb` (normalized 0-1 RGB, 0-100 XYZ).
+- Built-in color spaces: `srgb_space`, `display_p3_space`, `rec2100_pq_space`, `rec2100_hlg_space`; custom spaces via `RgbColorSpace::from_primaries`.
+- Transfer functions: sRGB piecewise, pure gamma, linear, SMPTE ST 2084 (PQ), and ARIB STD-B67 (HLG), each with an exact analytic inverse so `rgb_to_xyz` / `xyz_to_rgb` round-trip.
+- The legacy `srgb_to_xyz` / `xyz_to_srgb` now delegate to the new machinery; their 0-255 API and numeric output are unchanged.
 
 ## What's New in 0.1.3
 
