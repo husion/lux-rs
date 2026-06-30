@@ -24,15 +24,18 @@ pub use cam::{
 };
 #[allow(deprecated)]
 pub use color::{
-    cat_apply, cat_apply_context, cat_apply_mode, cat_apply_mode_with_conditions,
-    cat_apply_with_conditions, cat_compile, cat_compile_context, cat_compile_mode,
-    cat_compile_mode_with_conditions, cat_compile_with_conditions, cat_degree_of_adaptation,
-    cat_mode_degrees_from_conditions, delta_e, delta_e_cie76, delta_e_ciede2000,
-    get_cie_mesopic_adaptation, lab_to_xyz, lms_to_xyz, lms_to_xyz_with_matrix, luv_to_xyz,
-    srgb_to_xyz, vlbar_cie_mesopic, xyz_to_lab, xyz_to_lms, xyz_to_lms_with_matrix, xyz_to_luv,
-    xyz_to_srgb, xyz_to_yuv, xyz_to_yxy, yuv_to_xyz, yxy_to_xyz, CatAdapter, CatConditionPair,
-    CatContext, CatMode, CatSurround, CatTransform, CatViewingConditions, DeltaEFormula, Matrix3,
-    MesopicLuminousEfficiency, Observer, Tristimulus, TristimulusObserver,
+    BT2020_PRIMARIES, D65_XY, D65_XYZ, DISPLAY_P3_PRIMARIES, SRGB_PRIMARIES, cat_apply,
+    cat_apply_context, cat_apply_mode, cat_apply_mode_with_conditions, cat_apply_with_conditions,
+    cat_compile, cat_compile_context, cat_compile_mode, cat_compile_mode_with_conditions,
+    cat_compile_with_conditions, cat_degree_of_adaptation, cat_mode_degrees_from_conditions,
+    delta_e, delta_e_cie76, delta_e_ciede2000, display_p3_space, get_cie_mesopic_adaptation,
+    lab_to_xyz, lms_to_xyz, lms_to_xyz_with_matrix, luv_to_xyz, rec2100_hlg_space,
+    rec2100_pq_space, rgb_to_xyz, srgb_space, srgb_to_xyz, vlbar_cie_mesopic, xyz_to_lab,
+    xyz_to_lms, xyz_to_lms_with_matrix, xyz_to_luv, xyz_to_rgb, xyz_to_srgb, xyz_to_yuv,
+    xyz_to_yxy, yuv_to_xyz, yxy_to_xyz, CatAdapter, CatConditionPair, CatContext, CatMode,
+    CatSurround, CatTransform, CatViewingConditions, DeltaEFormula, Matrix3,
+    MesopicLuminousEfficiency, Observer, RgbColorSpace, TransferFunction, Tristimulus,
+    TristimulusObserver,
 };
 pub use cri::{
     spd_to_ciera, spd_to_ciera_result, spd_to_ciera_special, spd_to_cierf, spd_to_cierf_result,

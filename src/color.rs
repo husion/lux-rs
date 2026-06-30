@@ -455,6 +455,28 @@ impl Tristimulus {
         )
     }
 
+    /// Map each stored XYZ triplet through [`rgb_to_xyz`] using `space`.
+    pub fn rgb_to_xyz(&self, space: RgbColorSpace) -> Self {
+        Self::new(
+            self.values
+                .iter()
+                .copied()
+                .map(|value| rgb_to_xyz(value, space))
+                .collect::<Vec<_>>(),
+        )
+    }
+
+    /// Map each stored XYZ triplet through [`xyz_to_rgb`] using `space`.
+    pub fn xyz_to_rgb(&self, space: RgbColorSpace) -> Self {
+        Self::new(
+            self.values
+                .iter()
+                .copied()
+                .map(|value| xyz_to_rgb(value, space))
+                .collect::<Vec<_>>(),
+        )
+    }
+
     pub fn cat_apply(
         &self,
         source_white: [f64; 3],
@@ -1435,41 +1457,380 @@ pub fn cat_compile_context(context: CatContext) -> LuxResult<CatAdapter> {
     CatAdapter::from_context(context)
 }
 
-// sRGB transforms.
+// RGB color spaces.
+//
+// An RGB color space is the combination of two things:
+//   1. primaries + white point  ->  the linear RGB <-> XYZ matrix
+//   2. a transfer function (EOTF/OETF)  ->  the encoding of linear light
+//
+// `RgbColorSpace` bundles a precomputed forward/inverse matrix with a
+// `TransferFunction`; `rgb_to_xyz` / `xyz_to_rgb` apply the transfer function
+// per channel around the matrix multiply. Encoded RGB is normalized to [0, 1]
+// and XYZ uses the 0-100 scale (white = 100) used elsewhere in this module.
 
-pub fn xyz_to_srgb(xyz: [f64; 3], gamma: f64, offset: f64, use_linear_part: bool) -> [f64; 3] {
-    let linear = multiply_matrix3_vector3(
-        SRGB_XYZ_TO_RGB,
-        [xyz[0] / 100.0, xyz[1] / 100.0, xyz[2] / 100.0],
-    );
+/// CIE Standard Illuminant D65 chromaticity (xy).
+pub const D65_XY: [f64; 2] = [0.3127, 0.3290];
+/// CIE Standard Illuminant D65 tristimulus (XYZ, Y normalized to 100).
+pub const D65_XYZ: [f64; 3] = [95.047, 100.0, 108.883];
 
-    let mut rgb = [0.0; 3];
-    for (index, linear_value) in linear.iter().enumerate() {
-        let srgb = clamp(*linear_value, 0.0, 1.0);
-        let mut encoded = ((1.0 - offset) * srgb.powf(1.0 / gamma) + offset) * 255.0;
-        if use_linear_part && srgb <= 0.0031308 {
-            encoded = srgb * 12.92 * 255.0;
+/// sRGB / BT.709 primaries as CIE xy chromaticities: `[red, green, blue]`.
+pub const SRGB_PRIMARIES: [[f64; 2]; 3] = [[0.640, 0.330], [0.300, 0.600], [0.150, 0.060]];
+/// Display P3 primaries as CIE xy chromaticities: `[red, green, blue]`.
+pub const DISPLAY_P3_PRIMARIES: [[f64; 2]; 3] = [[0.680, 0.320], [0.265, 0.690], [0.150, 0.060]];
+/// BT.2020 / Rec.2100 primaries as CIE xy chromaticities: `[red, green, blue]`.
+pub const BT2020_PRIMARIES: [[f64; 2]; 3] = [[0.708, 0.292], [0.170, 0.797], [0.131, 0.046]];
+
+/// Electro-optical transfer function describing how an encoded RGB signal maps
+/// to linear light. Each variant defines an `eotf` (encoded -> linear) and its
+/// analytic inverse `oetf` (linear -> encoded); the pair is exact so that
+/// `rgb_to_xyz` / `xyz_to_rgb` round-trip.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum TransferFunction {
+    /// sRGB / Display P3 piecewise transfer function (IEC 61966-2-1).
+    SRgb,
+    /// Parameterized sRGB-family piecewise transfer function used by the legacy
+    /// `srgb_to_xyz` / `xyz_to_srgb`: `value = ((E - offset) / (1 - offset)) ^
+    /// gamma`, with a linear toe `E / 12.92` when `linear_part` is set.
+    SegmentedGamma {
+        gamma: f64,
+        offset: f64,
+        linear_part: bool,
+    },
+    /// Pure power law `linear = encoded ^ gamma` (e.g. Adobe RGB gamma 2.2).
+    Gamma(f64),
+    /// Identity transfer (values are already linear).
+    Linear,
+    /// SMPTE ST 2084 (PQ) perceptual quantizer. Linear 1.0 is the 10000 cd/m²
+    /// peak.
+    Pq,
+    /// ARIB STD-B67 / Rec.2100 HLG. `peak_luminance` (cd/m²) sets the display
+    /// system gamma; linear 1.0 is the peak white.
+    Hlg { peak_luminance: f64 },
+}
+
+impl TransferFunction {
+    /// Encoded signal value -> linear light (both in [0, 1] for sRGB/P3/gamma;
+    /// PQ/HLG output is normalized so 1.0 is the display peak).
+    pub fn eotf(self, encoded: f64) -> f64 {
+        match self {
+            TransferFunction::SRgb => segmented_gamma_eotf(encoded, 2.4, -0.055, true),
+            TransferFunction::SegmentedGamma {
+                gamma,
+                offset,
+                linear_part,
+            } => segmented_gamma_eotf(encoded, gamma, offset, linear_part),
+            TransferFunction::Gamma(gamma) => encoded.powf(gamma),
+            TransferFunction::Linear => encoded,
+            TransferFunction::Pq => pq_eotf(encoded),
+            TransferFunction::Hlg { peak_luminance } => hlg_eotf(encoded, peak_luminance),
         }
-        rgb[index] = clamp(encoded, 0.0, 255.0);
     }
 
-    rgb
+    /// Linear light -> encoded signal value (analytic inverse of `eotf`).
+    pub fn oetf(self, linear: f64) -> f64 {
+        match self {
+            TransferFunction::SRgb => segmented_gamma_oetf(linear, 2.4, -0.055, true),
+            TransferFunction::SegmentedGamma {
+                gamma,
+                offset,
+                linear_part,
+            } => segmented_gamma_oetf(linear, gamma, offset, linear_part),
+            TransferFunction::Gamma(gamma) => linear.powf(1.0 / gamma),
+            TransferFunction::Linear => linear,
+            TransferFunction::Pq => pq_oetf(linear),
+            TransferFunction::Hlg { peak_luminance } => hlg_oetf(linear, peak_luminance),
+        }
+    }
+}
+
+fn segmented_gamma_eotf(encoded: f64, gamma: f64, offset: f64, linear_part: bool) -> f64 {
+    let mut value = ((encoded - offset) / (1.0 - offset)).powf(gamma);
+    if linear_part && value < 0.0031308 {
+        value = encoded / 12.92;
+    }
+    value
+}
+
+fn segmented_gamma_oetf(linear: f64, gamma: f64, offset: f64, linear_part: bool) -> f64 {
+    let clamped = clamp(linear, 0.0, 1.0);
+    let mut encoded = (1.0 - offset) * clamped.powf(1.0 / gamma) + offset;
+    if linear_part && clamped <= 0.0031308 {
+        encoded = clamped * 12.92;
+    }
+    encoded
+}
+
+fn pq_constants() -> (f64, f64, f64, f64, f64) {
+    (0.1593017578125, 78.84375, 0.8359375, 18.8515625, 18.6875)
+}
+
+fn pq_eotf(encoded: f64) -> f64 {
+    let (m1, m2, c1, c2, c3) = pq_constants();
+    let em = encoded.powf(1.0 / m2);
+    let num = (em - c1).max(0.0);
+    let den = c2 - c3 * em;
+    (num / den).powf(1.0 / m1)
+}
+
+fn pq_oetf(linear: f64) -> f64 {
+    let (m1, m2, c1, c2, c3) = pq_constants();
+    let lm = linear.powf(m1);
+    ((c1 + c2 * lm) / (1.0 + c3 * lm)).powf(m2)
+}
+
+const HLG_A: f64 = 0.17883277;
+const HLG_B: f64 = 0.28466892;
+const HLG_C: f64 = 0.55991073;
+
+fn hlg_system_gamma(peak_luminance: f64) -> f64 {
+    1.2 + 0.42 * (peak_luminance / 1000.0).log10()
+}
+
+fn hlg_oetf_inverse(encoded: f64) -> f64 {
+    if encoded <= 0.5 {
+        encoded * encoded / 3.0
+    } else {
+        (((encoded - HLG_C) / HLG_A).exp() + HLG_B) / 12.0
+    }
+}
+
+fn hlg_oetf_scene(scene: f64) -> f64 {
+    if scene <= 1.0 / 12.0 {
+        (3.0 * scene).sqrt()
+    } else {
+        HLG_A * (12.0 * scene - HLG_B).ln() + HLG_C
+    }
+}
+
+fn hlg_eotf(encoded: f64, peak_luminance: f64) -> f64 {
+    let gamma = hlg_system_gamma(peak_luminance);
+    hlg_oetf_inverse(encoded).powf(gamma)
+}
+
+fn hlg_oetf(linear: f64, peak_luminance: f64) -> f64 {
+    let gamma = hlg_system_gamma(peak_luminance);
+    hlg_oetf_scene(linear.powf(1.0 / gamma))
+}
+
+/// Derive the linear RGB -> XYZ matrix (white normalized to Y = 1) from CIE xy
+/// primaries and white point. Columns are each primary's XYZ tristimulus scaled
+/// so that equal unit RGB sums to the white point.
+fn primaries_to_matrix(primaries: [[f64; 2]; 3], white_xy: [f64; 2]) -> Matrix3 {
+    let columns: [[f64; 3]; 3] = primaries.map(|[x, y]| [x / y, 1.0, (1.0 - x - y) / y]);
+    let p: Matrix3 = [
+        [columns[0][0], columns[1][0], columns[2][0]],
+        [columns[0][1], columns[1][1], columns[2][1]],
+        [columns[0][2], columns[1][2], columns[2][2]],
+    ];
+    let [wx, wy] = white_xy;
+    let white = [wx / wy, 1.0, (1.0 - wx - wy) / wy];
+    let scale = multiply_matrix3_vector3(invert_matrix3(p), white);
+    [
+        [p[0][0] * scale[0], p[0][1] * scale[1], p[0][2] * scale[2]],
+        [p[1][0] * scale[0], p[1][1] * scale[1], p[1][2] * scale[2]],
+        [p[2][0] * scale[0], p[2][1] * scale[1], p[2][2] * scale[2]],
+    ]
+}
+
+/// An RGB color space: a precomputed linear RGB <-> XYZ matrix pair plus the
+/// transfer function mapping encoded RGB to/from linear light.
+///
+/// Use a preset ([`srgb_space`], [`display_p3_space`], [`rec2100_pq_space`],
+/// [`rec2100_hlg_space`]) or build a custom one with [`RgbColorSpace::from_primaries`].
+///
+/// # Example
+///
+/// ```
+/// use lux_rs::{display_p3_space, rgb_to_xyz, xyz_to_yxy};
+///
+/// let space = display_p3_space();
+/// // Pure red maps to the Display P3 red-primary chromaticity (0.68, 0.32).
+/// let yxy = xyz_to_yxy(rgb_to_xyz([1.0, 0.0, 0.0], space));
+/// assert!((yxy[1] - 0.680).abs() < 1e-9);
+/// assert!((yxy[2] - 0.320).abs() < 1e-9);
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct RgbColorSpace {
+    name: &'static str,
+    rgb_to_xyz: Matrix3,
+    xyz_to_rgb: Matrix3,
+    transfer: TransferFunction,
+}
+
+impl RgbColorSpace {
+    /// Construct a color space by deriving the linear matrices from CIE xy
+    /// primaries and white point.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use lux_rs::{rgb_to_xyz, xyz_to_yxy, D65_XY, RgbColorSpace, TransferFunction};
+    ///
+    /// // Adobe RGB (1998): D65 white, simple gamma 2.2 transfer.
+    /// let adobe = RgbColorSpace::from_primaries(
+    ///     "adobe-rgb",
+    ///     [[0.640, 0.330], [0.210, 0.710], [0.150, 0.060]],
+    ///     D65_XY,
+    ///     TransferFunction::Gamma(2.2),
+    /// );
+    /// let yxy = xyz_to_yxy(rgb_to_xyz([0.0, 1.0, 0.0], adobe));
+    /// assert!((yxy[1] - 0.210).abs() < 1e-9);
+    /// assert!((yxy[2] - 0.710).abs() < 1e-9);
+    /// ```
+    pub fn from_primaries(
+        name: &'static str,
+        primaries: [[f64; 2]; 3],
+        white_xy: [f64; 2],
+        transfer: TransferFunction,
+    ) -> Self {
+        let rgb_to_xyz = primaries_to_matrix(primaries, white_xy);
+        let xyz_to_rgb = invert_matrix3(rgb_to_xyz);
+        Self {
+            name,
+            rgb_to_xyz,
+            xyz_to_rgb,
+            transfer,
+        }
+    }
+
+    /// Name of this color space (e.g. "display-p3").
+    pub fn name(self) -> &'static str {
+        self.name
+    }
+
+    /// Transfer function used by this color space.
+    pub fn transfer(self) -> TransferFunction {
+        self.transfer
+    }
+
+    /// Forward linear RGB -> XYZ matrix (white normalized to Y = 1).
+    pub fn rgb_to_xyz_matrix(self) -> Matrix3 {
+        self.rgb_to_xyz
+    }
+}
+
+/// sRGB color space (BT.709 primaries, D65 white, sRGB transfer function).
+pub fn srgb_space() -> RgbColorSpace {
+    RgbColorSpace::from_primaries("srgb", SRGB_PRIMARIES, D65_XY, TransferFunction::SRgb)
+}
+
+/// Display P3 color space (P3 primaries, D65 white, sRGB transfer function).
+pub fn display_p3_space() -> RgbColorSpace {
+    RgbColorSpace::from_primaries(
+        "display-p3",
+        DISPLAY_P3_PRIMARIES,
+        D65_XY,
+        TransferFunction::SRgb,
+    )
+}
+
+/// Rec.2100 PQ color space (BT.2020 primaries, D65 white, SMPTE ST 2084 transfer).
+pub fn rec2100_pq_space() -> RgbColorSpace {
+    RgbColorSpace::from_primaries(
+        "rec2100-pq",
+        BT2020_PRIMARIES,
+        D65_XY,
+        TransferFunction::Pq,
+    )
+}
+
+/// Rec.2100 HLG color space (BT.2020 primaries, D65 white, ARIB STD-B67 transfer,
+/// 1000 cd/m² peak).
+pub fn rec2100_hlg_space() -> RgbColorSpace {
+    RgbColorSpace::from_primaries(
+        "rec2100-hlg",
+        BT2020_PRIMARIES,
+        D65_XY,
+        TransferFunction::Hlg {
+            peak_luminance: 1000.0,
+        },
+    )
+}
+
+/// Convert encoded RGB (normalized [0, 1]) in `space` to CIE XYZ (0-100 scale,
+/// white = 100), applying the space's transfer function and linear matrix.
+///
+/// # Example
+///
+/// ```
+/// use lux_rs::{rgb_to_xyz, srgb_space};
+///
+/// // sRGB white (1, 1, 1) maps to the D65 white point at Y = 100.
+/// let [_, y, _] = rgb_to_xyz([1.0, 1.0, 1.0], srgb_space());
+/// assert!((y - 100.0).abs() < 1e-9);
+/// ```
+pub fn rgb_to_xyz(rgb: [f64; 3], space: RgbColorSpace) -> [f64; 3] {
+    let linear = [
+        space.transfer.eotf(rgb[0]),
+        space.transfer.eotf(rgb[1]),
+        space.transfer.eotf(rgb[2]),
+    ];
+    let xyz = multiply_matrix3_vector3(space.rgb_to_xyz, linear);
+    [xyz[0] * 100.0, xyz[1] * 100.0, xyz[2] * 100.0]
+}
+
+/// Convert CIE XYZ (0-100 scale, white = 100) to encoded RGB (normalized [0, 1])
+/// in `space`. Out-of-gamut values are returned as-is (may fall outside [0, 1]);
+/// callers may clamp for display encoding.
+///
+/// `xyz_to_rgb` is the exact inverse of [`rgb_to_xyz`], so the pair round-trips.
+///
+/// # Example
+///
+/// ```
+/// use lux_rs::{display_p3_space, rgb_to_xyz, xyz_to_rgb};
+///
+/// let space = display_p3_space();
+/// let rgb = [0.3, 0.6, 0.9];
+/// let back = xyz_to_rgb(rgb_to_xyz(rgb, space), space);
+/// for channel in 0..3 {
+///     assert!((back[channel] - rgb[channel]).abs() < 1e-9);
+/// }
+/// ```
+pub fn xyz_to_rgb(xyz: [f64; 3], space: RgbColorSpace) -> [f64; 3] {
+    let linear = multiply_matrix3_vector3(
+        space.xyz_to_rgb,
+        [xyz[0] / 100.0, xyz[1] / 100.0, xyz[2] / 100.0],
+    );
+    [
+        space.transfer.oetf(linear[0]),
+        space.transfer.oetf(linear[1]),
+        space.transfer.oetf(linear[2]),
+    ]
+}
+
+// sRGB transforms.
+
+// These legacy entry points keep the original 0-255 API and parameterized
+// piecewise transfer function, but delegate to the generic `rgb_to_xyz` /
+// `xyz_to_rgb` machinery using the fixed sRGB matrices.
+
+fn srgb_parameterized_space(gamma: f64, offset: f64, linear_part: bool) -> RgbColorSpace {
+    RgbColorSpace {
+        name: "srgb-parameterized",
+        rgb_to_xyz: SRGB_RGB_TO_XYZ,
+        xyz_to_rgb: SRGB_XYZ_TO_RGB,
+        transfer: TransferFunction::SegmentedGamma {
+            gamma,
+            offset,
+            linear_part,
+        },
+    }
+}
+
+pub fn xyz_to_srgb(xyz: [f64; 3], gamma: f64, offset: f64, use_linear_part: bool) -> [f64; 3] {
+    let space = srgb_parameterized_space(gamma, offset, use_linear_part);
+    let rgb = xyz_to_rgb(xyz, space);
+    [
+        clamp(rgb[0] * 255.0, 0.0, 255.0),
+        clamp(rgb[1] * 255.0, 0.0, 255.0),
+        clamp(rgb[2] * 255.0, 0.0, 255.0),
+    ]
 }
 
 pub fn srgb_to_xyz(rgb: [f64; 3], gamma: f64, offset: f64, use_linear_part: bool) -> [f64; 3] {
-    let scaled = [rgb[0] / 255.0, rgb[1] / 255.0, rgb[2] / 255.0];
-    let mut linear = [0.0; 3];
-
-    for (index, encoded) in scaled.iter().enumerate() {
-        let mut value = ((*encoded - offset) / (1.0 - offset)).powf(gamma);
-        if use_linear_part && value < 0.0031308 {
-            value = *encoded / 12.92;
-        }
-        linear[index] = value;
-    }
-
-    let xyz = multiply_matrix3_vector3(SRGB_RGB_TO_XYZ, linear);
-    [xyz[0] * 100.0, xyz[1] * 100.0, xyz[2] * 100.0]
+    let space = srgb_parameterized_space(gamma, offset, use_linear_part);
+    rgb_to_xyz([rgb[0] / 255.0, rgb[1] / 255.0, rgb[2] / 255.0], space)
 }
 
 // CIE perceptual color spaces with explicit white point input.

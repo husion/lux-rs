@@ -5,9 +5,11 @@ use core::str::FromStr;
 use lux_rs::CamSurround as ModelCamSurround;
 use lux_rs::{
     cam16_viewing_conditions, ciecam02_viewing_conditions, delta_e, delta_e_cie76,
-    delta_e_ciede2000, get_cie_mesopic_adaptation, lab_to_xyz, lms_to_xyz, luv_to_xyz, srgb_to_xyz,
-    vlbar_cie_mesopic, xyz_to_lab, xyz_to_lms, xyz_to_luv, xyz_to_srgb, xyz_to_yuv, xyz_to_yxy,
-    yuv_to_xyz, yxy_to_xyz, CamUcsType, DeltaEFormula, Observer, Tristimulus,
+    delta_e_ciede2000, display_p3_space, get_cie_mesopic_adaptation, lab_to_xyz, lms_to_xyz,
+    luv_to_xyz, rec2100_hlg_space, rec2100_pq_space, rgb_to_xyz, srgb_space, srgb_to_xyz,
+    vlbar_cie_mesopic, xyz_to_lab, xyz_to_lms, xyz_to_luv, xyz_to_rgb, xyz_to_srgb, xyz_to_yuv,
+    xyz_to_yxy, yuv_to_xyz, yxy_to_xyz, BT2020_PRIMARIES, CamUcsType, D65_XY, DISPLAY_P3_PRIMARIES,
+    DeltaEFormula, Observer, SRGB_PRIMARIES, Tristimulus, TransferFunction,
 };
 
 #[test]
@@ -593,4 +595,167 @@ fn converts_srgb_to_xyz() {
     assert!((xyz[0] - 19.344_430_750_022_802).abs() < 1e-9);
     assert!((xyz[1] - 20.332_127_014_120_942).abs() < 1e-9);
     assert!((xyz[2] - 52.763_974_844_108_34).abs() < 1e-9);
+}
+
+// RGB color-space abstraction tests.
+
+/// Helper: extract the CIE xy chromaticity of an XYZ triplet.
+fn chromaticity(xyz: [f64; 3]) -> [f64; 2] {
+    let yxy = xyz_to_yxy(xyz);
+    [yxy[1], yxy[2]]
+}
+
+#[test]
+fn derives_matrix_satisfying_white_constraint() {
+    // Equal-unit RGB ([1, 1, 1]) must sum to the D65 white point used to derive
+    // the matrix (Y = 1 normalization), validating `primaries_to_matrix`.
+    let m = srgb_space().rgb_to_xyz_matrix();
+    let sum = [
+        m[0][0] + m[0][1] + m[0][2],
+        m[1][0] + m[1][1] + m[1][2],
+        m[2][0] + m[2][1] + m[2][2],
+    ];
+    let [wx, wy] = D65_XY;
+    let expected = [wx / wy, 1.0, (1.0 - wx - wy) / wy];
+    for channel in 0..3 {
+        assert!((sum[channel] - expected[channel]).abs() < 1e-9);
+    }
+}
+
+#[test]
+fn primaries_define_correct_chromaticities() {
+    let cases = [
+        (srgb_space(), SRGB_PRIMARIES),
+        (display_p3_space(), DISPLAY_P3_PRIMARIES),
+        (rec2100_pq_space(), BT2020_PRIMARIES),
+        (rec2100_hlg_space(), BT2020_PRIMARIES),
+    ];
+    for (space, primaries) in cases {
+        let unit = [
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [0.0, 0.0, 1.0],
+        ];
+        for (channel, want) in unit.into_iter().zip(primaries.iter()) {
+            let got = chromaticity(rgb_to_xyz(channel, space));
+            assert!(
+                (got[0] - want[0]).abs() < 1e-9 && (got[1] - want[1]).abs() < 1e-9,
+                "{} primary {:?}: got {:?}",
+                space.name(),
+                want,
+                got
+            );
+        }
+    }
+}
+
+#[test]
+fn white_maps_to_d65_white_point() {
+    for space in [
+        srgb_space(),
+        display_p3_space(),
+        rec2100_pq_space(),
+        rec2100_hlg_space(),
+    ] {
+        let c = chromaticity(rgb_to_xyz([1.0, 1.0, 1.0], space));
+        assert!((c[0] - D65_XY[0]).abs() < 1e-9, "x for {}", space.name());
+        assert!((c[1] - D65_XY[1]).abs() < 1e-9, "y for {}", space.name());
+    }
+    // sRGB / P3 / PQ have eotf(1) == 1 exactly, so their white maps to Y = 100.
+    for space in [srgb_space(), display_p3_space(), rec2100_pq_space()] {
+        assert!((rgb_to_xyz([1.0, 1.0, 1.0], space)[1] - 100.0).abs() < 1e-9);
+    }
+}
+
+#[test]
+fn rgb_xyz_round_trips_within_each_space() {
+    // All-positive samples keep us inside the PQ inverse region (the PQ EOTF
+    // clamps near-black codes to linear 0, so exact 0 does not round-trip).
+    let samples = [
+        [0.1, 0.2, 0.3],
+        [0.4, 0.5, 0.6],
+        [0.75, 0.75, 0.75],
+        [1.0, 1.0, 1.0],
+    ];
+    for space in [
+        srgb_space(),
+        display_p3_space(),
+        rec2100_pq_space(),
+        rec2100_hlg_space(),
+    ] {
+        for rgb in samples {
+            let back = xyz_to_rgb(rgb_to_xyz(rgb, space), space);
+            for i in 0..3 {
+                assert!(
+                    (back[i] - rgb[i]).abs() < 1e-9,
+                    "{} round-trip {:?} channel {}: got {}",
+                    space.name(),
+                    rgb,
+                    i,
+                    back[i]
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn transfer_eotf_and_oetf_are_inverse() {
+    let transfer_functions = [
+        TransferFunction::SRgb,
+        TransferFunction::Linear,
+        TransferFunction::Gamma(2.2),
+        TransferFunction::Pq,
+        TransferFunction::Hlg {
+            peak_luminance: 1000.0,
+        },
+    ];
+    for tf in transfer_functions {
+        for value in [0.05, 0.1, 0.4, 0.5, 0.75, 1.0] {
+            assert!((tf.oetf(tf.eotf(value)) - value).abs() < 1e-9, "{:?} @ {}", tf, value);
+            assert!((tf.eotf(tf.oetf(value)) - value).abs() < 1e-9, "{:?} @ {}", tf, value);
+        }
+    }
+}
+
+#[test]
+fn pq_and_hlg_peaks_normalize_to_one() {
+    assert!((TransferFunction::Pq.eotf(1.0) - 1.0).abs() < 1e-9);
+    assert!(
+        (TransferFunction::Hlg {
+            peak_luminance: 1000.0
+        }
+        .eotf(1.0)
+            - 1.0)
+            .abs() < 1e-3
+    );
+}
+
+#[test]
+fn pq_black_round_trips_to_minimum_code() {
+    // Linear 0 in PQ encodes to the minimum code value (c1 ^ m2 ~ 7.3e-7), so a
+    // black XYZ round-trips to a small non-zero code rather than exactly 0.
+    let back = xyz_to_rgb(
+        rgb_to_xyz([0.0, 0.0, 0.0], rec2100_pq_space()),
+        rec2100_pq_space(),
+    );
+    for value in back {
+        assert!(value > 0.0 && value < 1e-6);
+    }
+}
+
+#[test]
+fn tristimulus_rgb_xyz_methods_match_scalar() {
+    let space = display_p3_space();
+    let inputs = vec![[0.1, 0.2, 0.3], [0.8, 0.6, 0.4]];
+    let via_rgb = Tristimulus::new(inputs.clone()).rgb_to_xyz(space).into_vec();
+    let via_xyz = Tristimulus::new(inputs.clone()).xyz_to_rgb(space).into_vec();
+    for (index, value) in inputs.iter().enumerate() {
+        let scalar_rgb = rgb_to_xyz(*value, space);
+        let scalar_xyz = xyz_to_rgb(*value, space);
+        for channel in 0..3 {
+            assert!((via_rgb[index][channel] - scalar_rgb[channel]).abs() < 1e-12);
+            assert!((via_xyz[index][channel] - scalar_xyz[channel]).abs() < 1e-12);
+        }
+    }
 }
